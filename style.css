@@ -1,0 +1,43 @@
+/* Remove default page spacing and make the game fill the window */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;        /* no scrollbars */
+  background: #0b1020;
+  font-family: "Courier New", monospace;
+}
+
+/* The box that holds the Three.js canvas */
+#game {
+  position: fixed;
+  inset: 0;                /* top/right/bottom/left = 0 */
+}
+
+/* Make sure the canvas fills the box with no gap under it */
+#game canvas {
+  display: block;
+}
+
+/* Controls text, floating in the top-left corner */
+#hud {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #000000;
+  pointer-events: none;    /* clicks go through to the game */
+  user-select: none;
+}
+
+#hud h1 {
+  margin: 0 0 4px 0;
+  font-size: 24px;
+  letter-spacing: 2px;
+}
+
+#hud p {
+  margin: 0;
+  font-size: 14px;
+}

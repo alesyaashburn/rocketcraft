@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RocketCraft</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Three.js draws the game into this box -->
+  <div id="game"></div>
+
+  <!-- Small text on top of the game that shows the controls -->
+  <div id="hud">
+    <h1>RocketCraft</h1>
+    <p>Move: Arrow keys or W A S D &nbsp;|&nbsp; Shoot: Space</p>
+  </div>
+
+  <!-- 1) Load Three.js from a CDN (this makes the global "THREE") -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- 2) Load our game code. It must come AFTER Three.js -->
+  <script src="main.js"></script>
+</body>
+</html>
