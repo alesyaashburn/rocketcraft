@@ -12,8 +12,12 @@ The 16x16 block textures in `assets/textures/` are from the **Pixel-Perfection**
 
 The textures in `assets/textures/` stay under the CC-BY-SA-4.0 license. They are not covered by any other license that may apply to the rest of this project. If you change or build on these textures, share your changes under the same license and keep this credit.
 
-Textures currently used in the game: `default_grass.png`, `default_grass_side.png`, `default_dirt.png`, `default_stone.png`. The game combines `default_grass_side.png` with `default_dirt.png` into one picture in the browser, which is a small change to the originals.
+Textures currently used in the game:
+- Terrain: `default_grass.png`, `default_grass_side.png`, `default_dirt.png`, `default_stone.png`
+- Player ship: `default_stone.png`, `default_stone_brick.png`, `default_tin_block.png`, `default_glass.png` (`default_cobble.png` is set up but not used in the current shape)
+
+The game combines some images in the browser (`default_grass_side.png` over `default_dirt.png`, and `default_glass.png` over a light blue color) and turns the ship's textures grey in the browser. These are small changes to the originals.
 
 ## Everything else
 
-The ship, bullets, clouds, sun, moon, stars, sky and code are original and made for RocketCraft.
+The ship design (its shape), the engine glow, bullets, clouds, sun, moon, stars, sky and code are original and made for RocketCraft.

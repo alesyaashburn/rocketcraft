@@ -12,6 +12,7 @@ const BULLET_SPEED = 28;        // how fast bullets fly right
 const SHOOT_COOLDOWN = 0.15;    // seconds between shots
 const TERRAIN_SPEED = 5;        // how fast the ground scrolls left
 const FAR_TERRAIN_SPEED = 2;    // distant hills scroll slower (feels deeper)
+const PLAY_FLOOR = -6;          // top of the near ground. The ship stays above this.
 
 // --- Time of day ---
 // The game reads your computer's clock and picks a phase of the day.
@@ -105,10 +106,7 @@ const TIME_OF_DAY = {
 // Each texture has a "base" color and some speckle colors that are
 // sprinkled over it to give every block a handmade pixel look.
 const COLORS = {
-  shipHull:  { base: "#c9d1dc", dark: "#9aa5b5", light: "#eef3f8", edge: "#7d8899" },
-  shipRed:   { base: "#e2352f", dark: "#a81e1e", light: "#ff6f4d", edge: "#7f1414" },
-  shipGlass: { base: "#38c8ff", dark: "#1a96dc", light: "#a6f2ff", white: "#ffffff" },
-  engine:    { base: "#ffa51a", dark: "#ff7a10", light: "#ffd83a", hot: "#fff4a8" },
+  engine:    { base: "#ffa51a", dark: "#ff7a10", light: "#ffd83a", hot: "#ffe45c" },
 
   cloud: { base: "#ffffff", shade: "#dde8f6", shade2: "#c8d8ee" },
 
@@ -143,6 +141,118 @@ const FACE_BRIGHTNESS = {
   top: 1.0,
   side: 0.9,
   bottom: 0.7,
+};
+
+// ===============================================================
+// SHIP DESIGN (edit this to change the shape of your ship!)
+// ===============================================================
+// The ship is made of cubes. We describe it with small text pictures.
+//
+// HOW TO READ IT
+//  * Each "slice" is a SIDE VIEW of the ship, drawn as rows of letters.
+//    Top row = top of the ship. Left = the back (engine). Right = the nose.
+//  * Every letter is one cube. The letter tells which texture it uses
+//    (see "legend" below). A "." means "no cube here".
+//  * "depth" says how far toward/away from you this slice is placed:
+//      0  = the middle of the ship
+//      1  = one cube toward you,   -1 = one cube away from you
+//    A slice with depth [-1, 1] is drawn twice (a left and a right copy),
+//    so the ship is the same on both sides.
+//  * All slices must have the same number of rows, and all rows the same
+//    number of letters (12 columns, 5 rows here = 12 long, 5 tall).
+//
+// TIPS
+//  * Change a letter to change a cube's texture. Change a letter to "." to remove it.
+//  * Add a new slice to make the ship wider or add wings.
+//  * Keep every row the same length, or the ship will look crooked.
+//  * The hitbox is measured from these cubes automatically.
+const SHIP_DESIGN = {
+  cubeSize: 0.4,   // size of one cube in game units (bigger = bigger ship)
+
+  // Which texture each letter means (names are from SHIP_TEXTURES below)
+  legend: {
+    S: "stone",    // main body
+    B: "brick",    // trim and the two tail fins
+    C: "cobble",   // more trim (not used yet, free for you to try)
+    I: "metal",    // nose and wing edges
+    G: "glass",    // cockpit
+    E: "engine",   // the small glowing orange-yellow engine cube
+  },
+
+  // Which row the engine and the gun are on (row 0 = top row)
+  engineRow: 2,
+  muzzleRow: 2,
+
+  slices: [
+    // Middle of the ship (depth 0): top fin + bottom fin at the back,
+    // cockpit on top near the front, pointed nose on the right
+    {
+      depth: [0],
+      rows: [
+        "BBB...GGG...",   // top fin (back) and cockpit (front)
+        "BSSSSSSSSI..",
+        "ESSSSSSSSSII",   // middle row: the engine cube (E) and the pointed nose
+        "BSSSSSSSSI..",
+        "BBB.........",   // bottom fin (back)
+      ],
+    },
+    // Body sides (one cube out, both sides)
+    {
+      depth: [-1, 1],
+      rows: [
+        "......GGG...",   // the cockpit is 3 cubes wide
+        "BSSSSSSSI...",
+        "BSSSSSSSSII.",
+        "BSSSSSSSI...",
+        "............",
+      ],
+    },
+    // Short wings, part 1 (two cubes out): metal front edge
+    {
+      depth: [-2, 2],
+      rows: [
+        "............",
+        "............",
+        "...BSSSSI...",
+        "...BSSSSI...",
+        "............",
+      ],
+    },
+    // Short wings, part 2 (three cubes out): the wing tips are all metal
+    {
+      depth: [-3, 3],
+      rows: [
+        "............",
+        "............",
+        "....IIII....",
+        "....IIII....",
+        "............",
+      ],
+    },
+  ],
+
+  // The flickering exhaust: 3 small cubes behind the engine.
+  // Each one is [column, row, depth]. A negative column is BEHIND the ship.
+  exhaust: [
+    [-1, 2, 0],
+    [-2, 2, 0],
+    [-3, 2, 0],
+  ],
+};
+
+// Images used for the ship (from assets/textures, see CREDITS.md).
+//   fallback = plain color used if the image can't load
+//   grey     = turn the picture grey (removes brown tints from the mortar)
+//   backColor = paint the see-through image over this color first
+const SHIP_TEXTURES = {
+  stone:  { file: "default_stone.png",       fallback: "#8c8c8c", grey: true },
+  brick:  { file: "default_stone_brick.png", fallback: "#6e6e6e", grey: true },
+  cobble: { file: "default_cobble.png",      fallback: "#767676", grey: true },
+  // Light grey metal block. (iron_block.png is almost black, so it is not used.
+  // To try it anyway: file: "iron_block.png", boost: 2.5)
+  metal:  { file: "default_tin_block.png",   fallback: "#a8a8a8", grey: true },
+  // The glass image is mostly see-through, so it is painted over light blue
+  glass:  { file: "default_glass.png",       fallback: "#8fd8ff", grey: true, backColor: "#8fd8ff" },
 };
 
 // --- Shadows ---
@@ -283,40 +393,130 @@ function makePixelTexture(options) {
   return texture;
 }
 
-// Draw a darker border on the top and left edge, so ship cubes look like panels
-function drawPanelEdge(ctx, size, color) {
-  ctx.fillStyle = color;
-  ctx.fillRect(0, 0, size, 1);
-  ctx.fillRect(0, 0, 1, size);
+// ---------------------------------------------------------------
+// Image textures from assets/textures (licensed, see CREDITS.md)
+// ---------------------------------------------------------------
+// Each block material starts as a plain fallback color. When its image
+// finishes loading, the picture is put on it. If loading fails, the color
+// stays and the game keeps working.
+const textureLoader = new THREE.TextureLoader();
+const textureCache = {}; // so each image file is only loaded once
+
+function loadPixelTexture(file, onReady) {
+  let entry = textureCache[file];
+  if (!entry) {
+    entry = { texture: null, failed: false, waiting: [] };
+    textureCache[file] = entry;
+    textureLoader.load(
+      TEXTURE_FOLDER + file,
+      function (texture) {
+        // Nearest = no smoothing, no mipmaps, so pixels stay crisp squares
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.generateMipmaps = false;
+        entry.texture = texture;
+        for (const callback of entry.waiting) callback(texture);
+        entry.waiting = [];
+      },
+      undefined,
+      function () {
+        entry.failed = true;
+        entry.waiting = [];
+        console.warn("RocketCraft: could not load " + TEXTURE_FOLDER + file + " - using a plain color instead.");
+      }
+    );
+  }
+  if (entry.texture) onReady(entry.texture);
+  else if (!entry.failed) entry.waiting.push(onReady);
 }
 
-// Ship textures are 8 x 8 because ship cubes are small
-const shipHullTexture = makePixelTexture({
-  size: 8, seed: 55, base: COLORS.shipHull.base,
-  speckles: [
-    { color: COLORS.shipHull.dark, chance: 0.2 },
-    { color: COLORS.shipHull.light, chance: 0.15 },
-  ],
-  extra: function (ctx, random, size) { drawPanelEdge(ctx, size, COLORS.shipHull.edge); },
-});
+// Make a material for one kind of block face.
+//   info   = an entry like the ones in TERRAIN_TEXTURES or SHIP_TEXTURES:
+//            file, fallback color, and optionally:
+//              under     = another image to paint first (for see-through images)
+//              backColor = a color to paint first (for see-through images like glass)
+//              boost     = brightness multiplier (for very dark images)
+//   bright = brightness of this face (1 = full, lower = darker)
+function makeBlockMaterial(info, bright) {
+  const level = bright * (info.boost || 1);
+  const material = new THREE.MeshLambertMaterial({
+    color: new THREE.Color(info.fallback).multiplyScalar(level),
+  });
 
-const shipRedTexture = makePixelTexture({
-  size: 8, seed: 66, base: COLORS.shipRed.base,
-  speckles: [
-    { color: COLORS.shipRed.dark, chance: 0.22 },
-    { color: COLORS.shipRed.light, chance: 0.14 },
-  ],
-  extra: function (ctx, random, size) { drawPanelEdge(ctx, size, COLORS.shipRed.edge); },
-});
+  function showTexture(texture) {
+    material.map = texture;
+    material.color.setRGB(level, level, level); // show the picture's own colors
+    material.needsUpdate = true;
+  }
 
-const shipGlassTexture = makePixelTexture({
-  size: 8, seed: 77, base: COLORS.shipGlass.base,
-  speckles: [
-    { color: COLORS.shipGlass.dark, chance: 0.2 },
-    { color: COLORS.shipGlass.light, chance: 0.2 },
-    { color: COLORS.shipGlass.white, chance: 0.05 },
-  ],
-});
+  if (info.under) {
+    // See-through image (like the grass fringe): paint it on top of another image
+    loadPixelTexture(info.under, function (underTexture) {
+      loadPixelTexture(info.file, function (overlayTexture) {
+        showTexture(stackTextures(underTexture, overlayTexture, null, info.grey));
+      });
+    });
+  } else if (info.backColor || info.grey) {
+    // Image that needs a plain color behind it (glass) and/or turning grey
+    loadPixelTexture(info.file, function (overlayTexture) {
+      showTexture(stackTextures(null, overlayTexture, info.backColor || null, info.grey));
+    });
+  } else {
+    loadPixelTexture(info.file, showTexture);
+  }
+  return material;
+}
+
+// Paint a loaded texture on top of another texture (or a plain color)
+// and return the combined texture. If "grey" is true, the top image is
+// turned grey first (the see-through parts stay see-through).
+function stackTextures(bottomTexture, topTexture, backColor, grey) {
+  const size = topTexture.image.width;
+
+  // Draw the top image on its own small canvas
+  const layer = document.createElement("canvas");
+  layer.width = size;
+  layer.height = size;
+  const layerContext = layer.getContext("2d");
+  layerContext.imageSmoothingEnabled = false;
+  layerContext.drawImage(topTexture.image, 0, 0, size, size);
+  if (grey) {
+    try {
+      const picture = layerContext.getImageData(0, 0, size, size);
+      const data = picture.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const level = Math.round(data[i] * 0.3 + data[i + 1] * 0.59 + data[i + 2] * 0.11);
+        data[i] = level;
+        data[i + 1] = level;
+        data[i + 2] = level;
+      }
+      layerContext.putImageData(picture, 0, 0);
+    } catch (error) {
+      console.warn("RocketCraft: could not turn a texture grey, using its normal colors.");
+    }
+  }
+
+  // Put it on top of the back color / back texture
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  if (backColor) {
+    ctx.fillStyle = backColor;
+    ctx.fillRect(0, 0, size, size);
+  } else if (bottomTexture) {
+    ctx.drawImage(bottomTexture.image, 0, 0, size, size);
+  }
+  ctx.drawImage(layer, 0, 0);
+
+  const combined = new THREE.CanvasTexture(canvas);
+  combined.magFilter = THREE.NearestFilter;
+  combined.minFilter = THREE.NearestFilter;
+  combined.generateMipmaps = false;
+  return combined;
+}
+
 
 const engineTexture = makePixelTexture({
   size: 8, seed: 88, base: COLORS.engine.base,
@@ -485,63 +685,89 @@ window.addEventListener("resize", resizeGame);
 resizeGame();
 
 // ===============================================================
-// 7. THE PLAYER SHIP (built from small textured cubes)
+// 7. THE PLAYER SHIP (built from the voxel design in SHIP_DESIGN)
 // ===============================================================
-const CUBE = 0.4; // size of one ship cube
-
 // Glow strength from the time of day (1 = normal, bigger at night)
 let glowBoost = 1;
 
+// The ship's hitbox, measured from the voxel design in SHIP_DESIGN.
+// It is the smallest box that fits all the cubes (side view), relative to the
+// ship's center. buildShip() fills it in.
+const shipHitbox = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+
+// Where bullets come out, relative to the ship's center (from muzzleRow in SHIP_DESIGN)
+const shipMuzzle = { x: 0, y: 0 };
+
+// Make the materials for one kind of ship cube (all 6 faces).
+// Face order: right, left, top, bottom, front, back.
+function makeShipMaterials(name) {
+  if (name === "engine") {
+    return new THREE.MeshBasicMaterial({ map: engineTexture }); // basic = always bright
+  }
+  const info = SHIP_TEXTURES[name] || { file: "default_stone.png", fallback: "#8c8c8c" };
+  const side = makeBlockMaterial(info, FACE_BRIGHTNESS.side);
+  return [
+    side,                                          // right
+    side,                                          // left
+    makeBlockMaterial(info, FACE_BRIGHTNESS.top),  // top
+    makeBlockMaterial(info, FACE_BRIGHTNESS.bottom), // bottom
+    side,                                          // front
+    side,                                          // back
+  ];
+}
+
 function buildShip() {
   const ship = new THREE.Group();
+  const cube = SHIP_DESIGN.cubeSize;
+  const rowCount = SHIP_DESIGN.slices[0].rows.length;
+  const columnCount = SHIP_DESIGN.slices[0].rows[0].length;
 
-  // Lists of cube positions for each material.
-  // A position is [x, y, z] counted in cubes (not in game units).
-  const parts = { hull: [], red: [], glass: [], engine: [] };
+  // Turn a grid column / row into a position. The middle of the grid is (0, 0).
+  function gridX(column) { return (column - (columnCount - 1) / 2) * cube; }
+  function gridY(row) { return ((rowCount - 1) / 2 - row) * cube; }
 
-  // Add a box made of cubes: start at (x, y, z), size w x h x d cubes
-  function addBlocks(part, x, y, z, w, h, d) {
-    for (let i = 0; i < w; i++) {
-      for (let j = 0; j < h; j++) {
-        for (let k = 0; k < d; k++) {
-          parts[part].push([x + i, y + j, z + k]);
+  // Read the design: collect cube positions for each kind of cube
+  const parts = {};
+  let minColumn = Infinity, maxColumn = -Infinity, minRow = Infinity, maxRow = -Infinity;
+  for (const slice of SHIP_DESIGN.slices) {
+    slice.rows.forEach(function (rowText, row) {
+      for (let column = 0; column < rowText.length; column++) {
+        const name = SHIP_DESIGN.legend[rowText[column]];
+        if (!name) continue; // "." (or any letter not in the legend) = empty
+        if (!parts[name]) parts[name] = [];
+        for (const depth of slice.depth) {
+          parts[name].push([gridX(column), gridY(row), depth * cube]);
         }
+        minColumn = Math.min(minColumn, column);
+        maxColumn = Math.max(maxColumn, column);
+        minRow = Math.min(minRow, row);
+        maxRow = Math.max(maxRow, row);
       }
-    }
+    });
   }
 
-  // The ship design (nose points right, +x)
-  addBlocks("hull", -3, -1, -1, 6, 2, 3);   // main body
-  addBlocks("red", 3, -1, -1, 1, 2, 3);     // nose cap
-  addBlocks("red", 4, -1, 0, 1, 2, 1);      // nose tip
-  addBlocks("glass", -1, 1, 0, 3, 1, 1);    // cockpit
-  addBlocks("red", -2, -1, -4, 3, 1, 3);    // left wing (toward the back of the screen)
-  addBlocks("red", -2, -1, 2, 3, 1, 3);     // right wing (toward the camera)
-  addBlocks("red", -3, 1, 0, 1, 2, 1);      // tail fin (tall part)
-  addBlocks("red", -2, 1, 0, 1, 1, 1);      // tail fin (short part)
-  addBlocks("engine", -4, -1, -1, 1, 2, 3); // glowing engine block
+  // Hitbox = the outer edges of the cubes we found
+  shipHitbox.minX = gridX(minColumn) - cube / 2;
+  shipHitbox.maxX = gridX(maxColumn) + cube / 2;
+  shipHitbox.minY = gridY(maxRow) - cube / 2;
+  shipHitbox.maxY = gridY(minRow) + cube / 2;
+  shipMuzzle.x = shipHitbox.maxX + 0.35;
+  shipMuzzle.y = gridY(SHIP_DESIGN.muzzleRow);
 
-  const materials = {
-    hull: new THREE.MeshLambertMaterial({ map: shipHullTexture }),
-    red: new THREE.MeshLambertMaterial({ map: shipRedTexture }),
-    glass: new THREE.MeshLambertMaterial({ map: shipGlassTexture }),
-    engine: new THREE.MeshBasicMaterial({ map: engineTexture }), // basic = always bright
-  };
-
-  // One InstancedMesh per material draws all of its cubes in a single go (fast)
-  const geometry = new THREE.BoxGeometry(CUBE, CUBE, CUBE);
+  // One InstancedMesh per kind of cube draws all of its cubes in a single go (fast)
+  const geometry = new THREE.BoxGeometry(cube, cube, cube);
   const dummy = new THREE.Object3D();
   const tint = new THREE.Color();
 
   for (const name in parts) {
     const list = parts[name];
-    const mesh = new THREE.InstancedMesh(geometry, materials[name], list.length);
+    const mesh = new THREE.InstancedMesh(geometry, makeShipMaterials(name), list.length);
     for (let i = 0; i < list.length; i++) {
-      dummy.position.set(list[i][0] * CUBE, (list[i][1] + 0.5) * CUBE, list[i][2] * CUBE);
+      dummy.position.set(list[i][0], list[i][1], list[i][2]);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       // Tiny brightness difference per cube, so no two look exactly alike
-      const shade = 0.88 + Math.random() * 0.12;
+      const shade = 0.9 + Math.random() * 0.1;
       tint.setRGB(shade, shade, shade);
       mesh.setColorAt(i, tint);
     }
@@ -550,38 +776,37 @@ function buildShip() {
     ship.add(mesh);
   }
 
-  // --- Engine glow: a flame that flickers, a soft glow, and a little orange light ---
-  const flameGeometry = new THREE.BoxGeometry(1, 0.5, 0.8);
-  flameGeometry.translate(-0.5, 0, 0); // so the flame grows backwards from x = 0
-  const flame = new THREE.Mesh(flameGeometry, new THREE.MeshBasicMaterial({
-    color: new THREE.Color(COLORS.engineFlame),
-    transparent: true,
-    opacity: 0.9,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    fog: false,
-  }));
-  flame.position.set(-4.5 * CUBE, 0, 0);
-  ship.add(flame);
+  // --- Exhaust: a few glowing cubes behind the engine that flicker ---
+  const backX = gridX(0) - cube / 2; // x of the back of the ship
+  const engineY = gridY(SHIP_DESIGN.engineRow); // height of the engines
+  // Normal (not additive) materials, so the glow can never wash out to white
+  const exhaustMaterial = new THREE.MeshBasicMaterial({ map: engineTexture, fog: false });
+  const exhaust = SHIP_DESIGN.exhaust.map(function (cell) {
+    const piece = new THREE.Mesh(geometry, exhaustMaterial);
+    piece.position.set(gridX(cell[0]), gridY(cell[1]), cell[2] * cube);
+    piece.userData.distance = Math.max(0, -cell[0]); // how far behind the engine
+    ship.add(piece);
+    return piece;
+  });
 
+  // --- Soft orange glow around the exhaust, and a little orange light ---
   const glowMaterial = new THREE.MeshBasicMaterial({
     color: new THREE.Color(COLORS.engineGlow),
     transparent: true,
-    opacity: 0.35,
-    blending: THREE.AdditiveBlending,
+    opacity: 0.2,
     depthWrite: false,
     fog: false,
   });
-  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 1.4), glowMaterial);
-  glow.position.set(-4.5 * CUBE - 0.3, 0, 0);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.8), glowMaterial);
+  glow.position.set(backX - 0.5, engineY, 0);
   ship.add(glow);
 
   const engineLight = new THREE.PointLight(new THREE.Color(COLORS.engineGlow), 1.2, 9);
-  engineLight.position.set(-4.5 * CUBE - 0.5, 0, 0);
+  engineLight.position.set(backX - 0.9, engineY, 0);
   ship.add(engineLight);
 
   // Keep handles so we can make the engine flicker every frame
-  ship.userData.flame = flame;
+  ship.userData.exhaust = exhaust;
   ship.userData.glowMaterial = glowMaterial;
   ship.userData.engineLight = engineLight;
   return ship;
@@ -622,6 +847,8 @@ function isShooting() { return keys["Space"]; }
 // ===============================================================
 // 9. MOVING THE SHIP
 // ===============================================================
+let shipTilt = 0; // current nose tilt (radians), eases toward the target
+
 function updateShip(dt) {
   // Work out direction: -1, 0 or 1 on each axis
   let moveX = 0;
@@ -640,21 +867,32 @@ function updateShip(dt) {
   ship.position.x += moveX * SHIP_SPEED * dt;
   ship.position.y += moveY * SHIP_SPEED * dt;
 
-  // Keep the ship inside the screen (and above the ground)
-  const minX = -screen.halfWidth + 1.8;
-  const maxX = screen.halfWidth - 1.8;
-  const minY = -4;
-  const maxY = screen.halfHeight - 2;
+  // Keep the whole ship (its hitbox) inside the screen and above the ground
+  const minX = -screen.halfWidth - shipHitbox.minX;
+  const maxX = screen.halfWidth - shipHitbox.maxX;
+  const minY = PLAY_FLOOR + 0.4 - shipHitbox.minY;
+  const maxY = screen.halfHeight - 1 - shipHitbox.maxY;
   ship.position.x = Math.min(maxX, Math.max(minX, ship.position.x));
   ship.position.y = Math.min(maxY, Math.max(minY, ship.position.y));
 
-  // Tilt the nose a little when going up or down
-  ship.rotation.z = moveY * 0.25;
+  // Tilt the nose a little when going up or down (eases in and out)
+  const targetTilt = moveY * 0.2;
+  shipTilt += (targetTilt - shipTilt) * Math.min(1, dt * 10);
+  ship.rotation.z = shipTilt;
 
-  // Flicker the engine flame, glow and light (stronger at night via glowBoost)
-  const bigger = 1 + 0.3 * (glowBoost - 1);
-  ship.userData.flame.scale.set(0.7 + Math.random() * 0.8, bigger, bigger);
-  ship.userData.glowMaterial.opacity = Math.min(0.9, (0.28 + Math.random() * 0.15) * glowBoost);
+  // Flicker the exhaust cubes, glow and light (stronger at night via glowBoost)
+  const grow = 1 + 0.25 * (glowBoost - 1);
+  for (const piece of ship.userData.exhaust) {
+    const distance = piece.userData.distance;
+    // Cubes farther behind the engine show up less often and are smaller
+    if (Math.random() < 1 - 0.15 * distance) {
+      piece.visible = true;
+      piece.scale.setScalar((0.8 - 0.14 * distance + Math.random() * 0.3) * grow);
+    } else {
+      piece.visible = false;
+    }
+  }
+  ship.userData.glowMaterial.opacity = Math.min(0.55, (0.13 + Math.random() * 0.1) * glowBoost);
   ship.userData.engineLight.intensity = (1.0 + Math.random() * 0.5) * glowBoost;
 }
 
@@ -687,7 +925,7 @@ function shootBullet() {
   const glow = new THREE.Mesh(bulletGlowGeometry, bulletGlowMaterial);
   glow.scale.setScalar(1 + 0.35 * (glowBoost - 1)); // bigger glow at night
   bullet.add(glow);
-  bullet.position.set(ship.position.x + 2.1, ship.position.y, 0);
+  bullet.position.set(ship.position.x + shipMuzzle.x, ship.position.y + shipMuzzle.y, 0); // just in front of the nose
   scene.add(bullet);
   bullets.push(bullet);
 }
@@ -727,99 +965,20 @@ const MAX_LAYERS = 5; // tallest a column can be (in cubes)
 
 // Materials shared by all terrain. A cube has 6 faces, in this order:
 // right, left, top, bottom, front, back.
-//
-// Textures come from image files (see TERRAIN_TEXTURES at the top).
-// Each material starts as a plain fallback color. When its image finishes
-// loading, the picture is put on it. If loading fails, the color stays.
-const textureLoader = new THREE.TextureLoader();
-const textureCache = {}; // so each image file is only loaded once
-
-function loadPixelTexture(file, onReady) {
-  let entry = textureCache[file];
-  if (!entry) {
-    entry = { texture: null, failed: false, waiting: [] };
-    textureCache[file] = entry;
-    textureLoader.load(
-      TEXTURE_FOLDER + file,
-      function (texture) {
-        // Nearest = no smoothing, no mipmaps, so pixels stay crisp squares
-        texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestFilter;
-        texture.generateMipmaps = false;
-        entry.texture = texture;
-        for (const callback of entry.waiting) callback(texture);
-        entry.waiting = [];
-      },
-      undefined,
-      function () {
-        entry.failed = true;
-        entry.waiting = [];
-        console.warn("RocketCraft: could not load " + TEXTURE_FOLDER + file + " - using a plain color instead.");
-      }
-    );
-  }
-  if (entry.texture) onReady(entry.texture);
-  else if (!entry.failed) entry.waiting.push(onReady);
-}
-
-// Make a material for one kind of block face.
-//   info   = an entry of TERRAIN_TEXTURES
-//   bright = brightness of this face (1 = full, lower = darker)
-function makeTerrainMaterial(info, bright) {
-  const material = new THREE.MeshLambertMaterial({
-    color: new THREE.Color(info.fallback).multiplyScalar(bright),
-  });
-
-  function showTexture(texture) {
-    material.map = texture;
-    material.color.setRGB(bright, bright, bright); // show the picture's own colors
-    material.needsUpdate = true;
-  }
-
-  if (info.under) {
-    // This image has see-through parts (the grass fringe). Paint it on top of
-    // another image first (the dirt) so the block has no holes.
-    loadPixelTexture(info.under, function (underTexture) {
-      loadPixelTexture(info.file, function (overlayTexture) {
-        showTexture(stackTextures(underTexture, overlayTexture));
-      });
-    });
-  } else {
-    loadPixelTexture(info.file, showTexture);
-  }
-  return material;
-}
-
-// Paint one loaded texture on top of another and return the combined texture
-function stackTextures(bottomTexture, topTexture) {
-  const size = bottomTexture.image.width;
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bottomTexture.image, 0, 0, size, size);
-  ctx.drawImage(topTexture.image, 0, 0, size, size);
-  const combined = new THREE.CanvasTexture(canvas);
-  combined.magFilter = THREE.NearestFilter;
-  combined.minFilter = THREE.NearestFilter;
-  combined.generateMipmaps = false;
-  return combined;
-}
 
 // A grass block has 3 different looks: grass top, grass side, and dirt underneath
-const grassSideMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.grassSide, FACE_BRIGHTNESS.side);
+const grassSideMaterial = makeBlockMaterial(TERRAIN_TEXTURES.grassSide, FACE_BRIGHTNESS.side);
 const grassBlockMaterials = [
   grassSideMaterial,                                                                  // right
   grassSideMaterial,                                                                  // left
-  makeTerrainMaterial(TERRAIN_TEXTURES.grassTop, FACE_BRIGHTNESS.top),                // top
-  makeTerrainMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.bottom),                 // bottom
+  makeBlockMaterial(TERRAIN_TEXTURES.grassTop, FACE_BRIGHTNESS.top),                // top
+  makeBlockMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.bottom),                 // bottom
   grassSideMaterial,                                                                  // front
   grassSideMaterial,                                                                  // back
 ];
 // Dirt and stone cubes use the same picture on every face
-const dirtBlockMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.side);
-const stoneBlockMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.stone, FACE_BRIGHTNESS.side);
+const dirtBlockMaterial = makeBlockMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.side);
+const stoneBlockMaterial = makeBlockMaterial(TERRAIN_TEXTURES.stone, FACE_BRIGHTNESS.side);
 
 function createTerrain(settings) {
   const count = settings.columnCount;

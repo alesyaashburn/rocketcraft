@@ -53,6 +53,29 @@ Block textures in `assets/textures/` are from Pixel-Perfection by Hugh "XSSheep"
 
 Newest entries go at the top. Add a new dated entry every time the game changes.
 
+### 2026-11-15 - Ship fix: grey, clearer shape, smaller engine
+- The ship is now clearly grey: stone body, stone brick fins and trim, light metal (tin block) nose and wing edges, glass cockpit. The textures are turned grey in the browser so the brown mortar lines are gone.
+- New side-view shape: 12 cubes long, 5 tall, pointed nose, cockpit on top near the front, a fin on top and one on the bottom at the back, and short wings in the middle.
+- The big white engine block is gone. The engine is now one small glowing orange-yellow cube with a flickering exhaust of 3 small cubes. The glow no longer washes out to white, and it is stronger at night.
+- Gameplay is unchanged.
+
+### 2026-11-15 - Ship redesigned from the reference picture
+- The ship is now a swept-wing jet: long slim body, glass canopy toward the front, iron nose, twin tail fins, small tail planes, and wide thin swept wings.
+- Still built only from the stone, cobblestone, stone brick, iron and glass textures in `assets/textures`.
+- Now 14 cubes long, 5 tall and 13 wide (cube size 0.36). Edit it in `SHIP_DESIGN` at the top of `main.js`.
+- Bullets now come out of the nose (`muzzleRow`), and the engine glow follows the engine row (`engineRow`).
+- Gameplay is unchanged.
+
+### 2026-11-15 - New player ship: the stone rocket-fighter
+- Redesigned the ship: 12 cubes long, 5 tall, made of stone, cobblestone, stone brick, iron, and glass block textures.
+- Iron nose and wing edges, glass cockpit, two fins (top and bottom) at the back, and short blocky wings.
+- Glowing engine plate with a flickering exhaust made of cubes. The engine glows more at night.
+- The ship's shape is now defined as voxel data in `SHIP_DESIGN` at the top of `main.js` (text pictures you can edit).
+- Plain grey fallback colors if a texture fails to load.
+- The nose tilts smoothly when moving up and down.
+- The hitbox is measured from the cubes, and bullets now come out of the nose.
+- Gameplay is unchanged.
+
 ### 2026-11-15 - Real block textures for the terrain
 - Terrain now uses image textures from `assets/textures/` (grass top, grass side, dirt, stone), loaded with Three.js `TextureLoader` using relative paths.
 - Nearest-neighbor filtering, no mipmaps, so pixels stay crisp.
