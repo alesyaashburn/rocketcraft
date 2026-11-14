@@ -1,39 +1,471 @@
-// RocketCraft - step 1: scene, camera, player ship, shooting, scrolling terrain.
-// Everything is built from simple colored cubes. No images or sounds.
+// RocketCraft - pixel-voxel look + time of day (follows the player's clock).
+// Everything is built from cubes and textures drawn by the code itself.
+// No image files, no sounds, all original.
 
-// ---------------------------------------------------------------
-// 1. SETTINGS (change these numbers to tweak the game)
-// ---------------------------------------------------------------
+// ===============================================================
+// 1. SETTINGS (change these to tweak the game and the look)
+// ===============================================================
+
+// --- Gameplay (unchanged) ---
 const SHIP_SPEED = 10;          // how fast the ship moves
 const BULLET_SPEED = 28;        // how fast bullets fly right
 const SHOOT_COOLDOWN = 0.15;    // seconds between shots
 const TERRAIN_SPEED = 5;        // how fast the ground scrolls left
 const FAR_TERRAIN_SPEED = 2;    // distant hills scroll slower (feels deeper)
 
-// ---------------------------------------------------------------
+// --- Time of day ---
+// The game reads your computer's clock and picks a phase of the day.
+// Each phase starts at "start" (hours, 24h clock) and lasts until the next
+// phase starts. The last phase (night) runs until the first one starts again.
+// Between two phases the look blends smoothly over "blendHours".
+//
+// Look settings for each phase:
+//   skyTop / skyMid / skyHorizon : the three colors of the sky gradient
+//   fog                          : far hills fade into this color
+//   sunColor, sunIntensity       : the sunlight (also makes the shadows)
+//   moonColor, moonIntensity     : the moonlight
+//   hemiSky, hemiGround, hemiIntensity : soft light so shadows are never black
+//   cloudTint, cloudEmissive     : cloud color (emissive = glow in the shade)
+//   sunTint, sunGlow             : color of the sun cube and its glow
+//   starOpacity                  : 0 = no stars, 1 = full stars
+//   glowBoost                    : makes the engine glow and bullets brighter
+const TIME_OF_DAY = {
+  blendHours: 1.0,            // how long the smooth change between phases takes
+  sweepHoursPerSecond: 4,     // how fast the sky "fast-forwards" when you press T
+  phases: [
+    {
+      name: "Morning", start: 6,
+      look: {
+        skyTop: "#3b64c8", skyMid: "#9aa6e0", skyHorizon: "#ffc48f",
+        fog: "#f7c9a0",
+        sunColor: "#ffd2a0", sunIntensity: 0.85,
+        moonColor: "#9db8ff", moonIntensity: 0,
+        hemiSky: "#d8e4ff", hemiGround: "#8a6040", hemiIntensity: 0.75,
+        cloudTint: "#ffe0cc", cloudEmissive: "#5a4a58",
+        sunTint: "#ffd070", sunGlow: "#ffa040",
+        starOpacity: 0, glowBoost: 1.1,
+      },
+    },
+    {
+      name: "Daylight", start: 9,
+      look: {
+        skyTop: "#1747c8", skyMid: "#4f8fe6", skyHorizon: "#a8e0ff",
+        fog: "#a8e0ff",
+        sunColor: "#fff2d6", sunIntensity: 1.0,
+        moonColor: "#9db8ff", moonIntensity: 0,
+        hemiSky: "#bfe6ff", hemiGround: "#7a5a3c", hemiIntensity: 0.8,
+        cloudTint: "#ffffff", cloudEmissive: "#4d5870",
+        sunTint: "#ffffff", sunGlow: "#ffd34a",
+        starOpacity: 0, glowBoost: 1.0,
+      },
+    },
+    {
+      name: "Afternoon", start: 16,
+      look: {
+        skyTop: "#2955c8", skyMid: "#74a8e8", skyHorizon: "#ffe0a8",
+        fog: "#f5dcb0",
+        sunColor: "#ffdca0", sunIntensity: 0.95,
+        moonColor: "#9db8ff", moonIntensity: 0,
+        hemiSky: "#ffe8cc", hemiGround: "#7a5a3c", hemiIntensity: 0.75,
+        cloudTint: "#fff0d8", cloudEmissive: "#5a5050",
+        sunTint: "#ffe070", sunGlow: "#ffc040",
+        starOpacity: 0, glowBoost: 1.1,
+      },
+    },
+    {
+      name: "Sunset", start: 18,
+      look: {
+        skyTop: "#40307f", skyMid: "#d0508c", skyHorizon: "#ff8a3c",
+        fog: "#ff9a5c",
+        sunColor: "#ff9a4a", sunIntensity: 0.8,
+        moonColor: "#9db8ff", moonIntensity: 0,
+        hemiSky: "#e8a0c0", hemiGround: "#5a3a40", hemiIntensity: 0.65,
+        cloudTint: "#ff9ec0", cloudEmissive: "#6a2a4a",
+        sunTint: "#ff7a30", sunGlow: "#ff5a2a",
+        starOpacity: 0.1, glowBoost: 1.5,
+      },
+    },
+    {
+      name: "Night", start: 19.5,
+      look: {
+        skyTop: "#040a22", skyMid: "#0a1840", skyHorizon: "#1b3070",
+        fog: "#14275c",
+        sunColor: "#5060a0", sunIntensity: 0,
+        moonColor: "#b4ccff", moonIntensity: 0.6,
+        hemiSky: "#4666b8", hemiGround: "#222c58", hemiIntensity: 1.1,
+        cloudTint: "#7a8cc0", cloudEmissive: "#101a3c",
+        sunTint: "#ffe27a", sunGlow: "#ffc040",
+        starOpacity: 1, glowBoost: 2.3,
+      },
+    },
+  ],
+};
+
+// --- Colors of textures and objects (not time-dependent) ---
+// Each texture has a "base" color and some speckle colors that are
+// sprinkled over it to give every block a handmade pixel look.
+const COLORS = {
+  shipHull:  { base: "#c9d1dc", dark: "#9aa5b5", light: "#eef3f8", edge: "#7d8899" },
+  shipRed:   { base: "#e2352f", dark: "#a81e1e", light: "#ff6f4d", edge: "#7f1414" },
+  shipGlass: { base: "#38c8ff", dark: "#1a96dc", light: "#a6f2ff", white: "#ffffff" },
+  engine:    { base: "#ffa51a", dark: "#ff7a10", light: "#ffd83a", hot: "#fff4a8" },
+
+  cloud: { base: "#ffffff", shade: "#dde8f6", shade2: "#c8d8ee" },
+
+  sun:  { base: "#fff0a0", light: "#fffbd0", orange: "#ffd45a", hot: "#ffffff" },
+  moon: { base: "#d8dfef", light: "#f2f5ff", dark: "#a9b4cc", crater: "#7e8aa6" },
+  moonGlow: "#8fb0ff",
+
+  bulletCore: "#ffee22",
+  bulletHot: "#fffbd0",
+  bulletGlow: "#ffc820",
+  engineFlame: "#ffb020",
+  engineGlow: "#ff8a1a",
+};
+
+// --- Terrain textures (image files, see CREDITS.md) ---
+// Each entry: which image to load, and a plain fallback color that is used
+// if the image can't be loaded (the game keeps working either way).
+// Other images in assets/textures are free to use for later features.
+const TEXTURE_FOLDER = "assets/textures/";   // relative path, works on GitHub Pages
+const TERRAIN_TEXTURES = {
+  grassTop:  { file: "default_grass.png",      fallback: "#3fc43a" },
+  // The grass side image is only the green fringe (the rest is see-through),
+  // so it is painted on top of the dirt image ("under").
+  grassSide: { file: "default_grass_side.png", under: "default_dirt.png", fallback: "#6f8a34" },
+  dirt:      { file: "default_dirt.png",       fallback: "#8b5a2b" },
+  stone:     { file: "default_stone.png",      fallback: "#7d8696" },
+};
+
+// How bright each cube face is (1 = full). Top is brightest, bottom darkest.
+// The sun light adds even more difference on top of this.
+const FACE_BRIGHTNESS = {
+  top: 1.0,
+  side: 0.9,
+  bottom: 0.7,
+};
+
+// --- Shadows ---
+const SHADOW = {
+  enabled: true,
+  mapSize: 2048,        // shadow sharpness. Use 1024 if the game feels slow.
+  bias: -0.0005,        // tiny nudge that stops stripy shadow artifacts
+  normalBias: 0.03,
+  halfWidth: 30,        // how much of the world is covered by shadows (left/right)
+  halfHeight: 22,       // (up/down)
+};
+
+// --- Fog (far hills fade into the sky; the fog COLOR comes from the time of day) ---
+const FOG = {
+  enabled: true,
+  near: 27,             // fog starts this far from the camera
+  far: 48,              // everything is fully fogged at this distance
+};
+
+// --- Clouds ---
+const CLOUDS = {
+  count: 9,
+  minSpeed: 0.4,
+  maxSpeed: 1.0,
+};
+
+// --- Sun, moon and stars ---
+const SKY_OBJECTS = {
+  starCount: 80,
+  lightDistance: 22,    // how far away the sun/moon light sits from the middle of the world
+};
+
+// ===============================================================
 // 2. SCENE, CAMERA, RENDERER
-// ---------------------------------------------------------------
+// ===============================================================
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x7ec8ff); // sky blue
 
 // Camera looks at the game plane from the side, tilted a tiny bit
-// so we can see the top and sides of the cubes (that's the "2.5D" look).
+// so we can see the top and sides of the cubes (the "2.5D" look).
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
 camera.position.set(0, 3, 22);
 camera.lookAt(0, 0, 0);
+scene.add(camera); // the camera must be in the scene so the sun, moon and stars can be attached to it
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = SHADOW.enabled;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // soft shadow edges
 document.getElementById("game").appendChild(renderer.domElement);
 
-// Lights: soft light everywhere + a "sun" so cube sides have different shades
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(-5, 10, 8);
-scene.add(sun);
+// Fog: far things blend into the horizon color (color is set by the time of day)
+if (FOG.enabled) {
+  scene.fog = new THREE.Fog(new THREE.Color("#ffffff"), FOG.near, FOG.far);
+}
 
 // The edges of the screen (in game units). Updated when the window resizes.
 const screen = { halfWidth: 18, halfHeight: 10 };
 
+// ===============================================================
+// 3. LIGHTS (colors and strengths are set every frame by the time of day)
+// ===============================================================
+
+// Soft light so the dark sides of cubes are never pure black
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 0.8);
+scene.add(hemiLight);
+
+// The sun / moon light: strong light from one direction. It makes the shadows,
+// and it lights the top, front and side faces of each cube differently.
+// By day it sits where the sun is; at night it sits where the moon is.
+const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+sunLight.position.set(-8, 14, 10);
+sunLight.castShadow = SHADOW.enabled;
+sunLight.shadow.mapSize.set(SHADOW.mapSize, SHADOW.mapSize);
+sunLight.shadow.bias = SHADOW.bias;
+sunLight.shadow.normalBias = SHADOW.normalBias;
+sunLight.shadow.camera.left = -SHADOW.halfWidth;
+sunLight.shadow.camera.right = SHADOW.halfWidth;
+sunLight.shadow.camera.top = SHADOW.halfHeight;
+sunLight.shadow.camera.bottom = -SHADOW.halfHeight;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 80;
+sunLight.shadow.camera.updateProjectionMatrix();
+scene.add(sunLight);
+
+// ===============================================================
+// 4. PIXEL TEXTURES (drawn by code on a tiny canvas)
+// ===============================================================
+
+// A simple random number maker that gives the SAME numbers every time
+// for the same seed. That way the textures look the same on every reload.
+function makeRandom(seed) {
+  let state = seed;
+  return function () {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+}
+
+// Make a small pixel texture.
+//   size      = pixels across (16 means 16 x 16 pixels)
+//   base      = main color
+//   speckles  = list of { color, chance } sprinkled over the base
+//   extra     = optional function to draw extra details on top
+function makePixelTexture(options) {
+  const size = options.size || 16;
+  const random = makeRandom(options.seed);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+
+  // Paint every pixel one by one
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let color = options.base;
+      const roll = random();
+      let total = 0;
+      for (const speckle of options.speckles) {
+        total += speckle.chance;
+        if (roll < total) {
+          color = speckle.color;
+          break;
+        }
+      }
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  if (options.extra) options.extra(ctx, random, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  // Nearest = no blurring, so every pixel stays a crisp square
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.generateMipmaps = false;
+  return texture;
+}
+
+// Draw a darker border on the top and left edge, so ship cubes look like panels
+function drawPanelEdge(ctx, size, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, size, 1);
+  ctx.fillRect(0, 0, 1, size);
+}
+
+// Ship textures are 8 x 8 because ship cubes are small
+const shipHullTexture = makePixelTexture({
+  size: 8, seed: 55, base: COLORS.shipHull.base,
+  speckles: [
+    { color: COLORS.shipHull.dark, chance: 0.2 },
+    { color: COLORS.shipHull.light, chance: 0.15 },
+  ],
+  extra: function (ctx, random, size) { drawPanelEdge(ctx, size, COLORS.shipHull.edge); },
+});
+
+const shipRedTexture = makePixelTexture({
+  size: 8, seed: 66, base: COLORS.shipRed.base,
+  speckles: [
+    { color: COLORS.shipRed.dark, chance: 0.22 },
+    { color: COLORS.shipRed.light, chance: 0.14 },
+  ],
+  extra: function (ctx, random, size) { drawPanelEdge(ctx, size, COLORS.shipRed.edge); },
+});
+
+const shipGlassTexture = makePixelTexture({
+  size: 8, seed: 77, base: COLORS.shipGlass.base,
+  speckles: [
+    { color: COLORS.shipGlass.dark, chance: 0.2 },
+    { color: COLORS.shipGlass.light, chance: 0.2 },
+    { color: COLORS.shipGlass.white, chance: 0.05 },
+  ],
+});
+
+const engineTexture = makePixelTexture({
+  size: 8, seed: 88, base: COLORS.engine.base,
+  speckles: [
+    { color: COLORS.engine.dark, chance: 0.2 },
+    { color: COLORS.engine.light, chance: 0.3 },
+    { color: COLORS.engine.hot, chance: 0.1 },
+  ],
+});
+
+const cloudTexture = makePixelTexture({
+  size: 8, seed: 99, base: COLORS.cloud.base,
+  speckles: [
+    { color: COLORS.cloud.shade, chance: 0.25 },
+    { color: COLORS.cloud.shade2, chance: 0.1 },
+  ],
+});
+
+const sunTexture = makePixelTexture({
+  size: 8, seed: 111, base: COLORS.sun.base,
+  speckles: [
+    { color: COLORS.sun.light, chance: 0.2 },
+    { color: COLORS.sun.orange, chance: 0.2 },
+    { color: COLORS.sun.hot, chance: 0.06 },
+  ],
+});
+
+const moonTexture = makePixelTexture({
+  size: 8, seed: 122, base: COLORS.moon.base,
+  speckles: [
+    { color: COLORS.moon.light, chance: 0.2 },
+    { color: COLORS.moon.dark, chance: 0.15 },
+    { color: COLORS.moon.crater, chance: 0.08 },
+  ],
+});
+
+// ===============================================================
+// 5. SKY, SUN, MOON AND STARS
+// ===============================================================
+
+// The sky is a tall thin canvas, repainted every frame with the current
+// three colors (top, middle, horizon). Three.js stretches it over the screen.
+const skyCanvas = document.createElement("canvas");
+skyCanvas.width = 2;
+skyCanvas.height = 256;
+const skyContext = skyCanvas.getContext("2d");
+const skyTexture = new THREE.CanvasTexture(skyCanvas);
+scene.background = skyTexture;
+
+function paintSky(topColor, midColor, horizonColor) {
+  const gradient = skyContext.createLinearGradient(0, 0, 0, 256);
+  gradient.addColorStop(0, "#" + topColor.getHexString());
+  gradient.addColorStop(0.55, "#" + midColor.getHexString());
+  gradient.addColorStop(1, "#" + horizonColor.getHexString());
+  skyContext.fillStyle = gradient;
+  skyContext.fillRect(0, 0, 2, 256);
+  skyTexture.needsUpdate = true;
+}
+
+// A cube whose 6 faces have different brightness (top brightest), so the sun
+// and moon read as 3D cubes. Face order: right, left, top, bottom, front, back.
+const FACE_SHADES = [0.85, 0.85, 1.0, 0.7, 0.95, 0.7];
+
+function makeCelestialCube(size, texture) {
+  const materials = FACE_SHADES.map(function () {
+    return new THREE.MeshBasicMaterial({ map: texture, fog: false });
+  });
+  const cube = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), materials);
+  cube.rotation.set(0.5, 0.6, 0); // turned a bit so we can see the top and a side
+  return { cube: cube, materials: materials };
+}
+
+// A flat see-through square placed behind the cube to make a soft blocky glow
+function makeGlowSquare(size, opacity) {
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: opacity,
+    depthWrite: false,
+    fog: false,
+  });
+  const square = new THREE.Mesh(new THREE.BoxGeometry(size, size, 1), material);
+  square.position.z = -6;
+  return square;
+}
+
+// --- Sun ---
+const sunGroup = new THREE.Group();
+const sunParts = makeCelestialCube(6.5, sunTexture);
+const sunGlowOuter = makeGlowSquare(15, 0.12);
+const sunGlowInner = makeGlowSquare(11, 0.22);
+sunGroup.add(sunGlowOuter, sunGlowInner, sunParts.cube);
+camera.add(sunGroup); // attached to the camera, so it moves in screen space
+
+// --- Moon (same idea, pale and bluish) ---
+const moonGroup = new THREE.Group();
+const moonParts = makeCelestialCube(5.5, moonTexture);
+const moonGlowOuter = makeGlowSquare(13, 0.1);
+const moonGlowInner = makeGlowSquare(9.5, 0.18);
+moonGlowOuter.material.color.set(COLORS.moonGlow);
+moonGlowInner.material.color.set(COLORS.moonGlow);
+moonGroup.add(moonGlowOuter, moonGlowInner, moonParts.cube);
+camera.add(moonGroup);
+for (let i = 0; i < FACE_SHADES.length; i++) {
+  moonParts.materials[i].color.setRGB(FACE_SHADES[i], FACE_SHADES[i], FACE_SHADES[i]);
+}
+
+// --- Stars: tiny cubes spread over the sky (only visible at night) ---
+const starData = [];
+for (let i = 0; i < SKY_OBJECTS.starCount; i++) {
+  starData.push({
+    x: Math.random() * 2 - 1,            // -1 (left edge) to +1 (right edge)
+    y: -0.3 + Math.random() * 1.3,       // from just above the hills to the top
+    size: 0.3 + Math.random() * 0.35,
+  });
+}
+const starMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, fog: false,
+});
+const stars = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), starMaterial, starData.length);
+stars.frustumCulled = false;
+camera.add(stars);
+
+// How big the visible sky is, measured at the sun's distance. Set in placeSkyObjects().
+const SUN_DISTANCE = 60;
+const STAR_DISTANCE = 70;
+const skySize = { halfWidth: 30, halfHeight: 28 };
+
+// Called on every window resize: keeps stars spread over the whole screen
+function placeSkyObjects() {
+  const tanHalfFov = Math.tan((camera.fov * Math.PI) / 360);
+  skySize.halfHeight = tanHalfFov * SUN_DISTANCE;
+  skySize.halfWidth = skySize.halfHeight * camera.aspect;
+
+  const starHalfHeight = tanHalfFov * STAR_DISTANCE;
+  const starHalfWidth = starHalfHeight * camera.aspect;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < starData.length; i++) {
+    dummy.position.set(starData[i].x * starHalfWidth, starData[i].y * starHalfHeight, -STAR_DISTANCE);
+    dummy.scale.setScalar(starData[i].size);
+    dummy.updateMatrix();
+    stars.setMatrixAt(i, dummy.matrix);
+  }
+  stars.instanceMatrix.needsUpdate = true;
+}
+
+// ===============================================================
+// 6. WINDOW RESIZE
+// ===============================================================
 function resizeGame() {
   const w = window.innerWidth;
   const h = window.innerHeight;
@@ -46,51 +478,112 @@ function resizeGame() {
   const fovInRadians = (camera.fov * Math.PI) / 180;
   screen.halfHeight = Math.tan(fovInRadians / 2) * distance;
   screen.halfWidth = screen.halfHeight * camera.aspect;
+
+  placeSkyObjects();
 }
 window.addEventListener("resize", resizeGame);
 resizeGame();
 
-// ---------------------------------------------------------------
-// 3. HELPER: make a colored cube
-// ---------------------------------------------------------------
-function makeBlock(width, height, depth, color) {
-  const geometry = new THREE.BoxGeometry(width, height, depth);
-  const material = new THREE.MeshLambertMaterial({ color: color });
-  return new THREE.Mesh(geometry, material);
-}
+// ===============================================================
+// 7. THE PLAYER SHIP (built from small textured cubes)
+// ===============================================================
+const CUBE = 0.4; // size of one ship cube
 
-// ---------------------------------------------------------------
-// 4. THE PLAYER SHIP (a group of cubes, nose pointing right)
-// ---------------------------------------------------------------
+// Glow strength from the time of day (1 = normal, bigger at night)
+let glowBoost = 1;
+
 function buildShip() {
   const ship = new THREE.Group();
 
-  const body = makeBlock(2.2, 0.7, 0.9, 0xd9dde3); // main body (light gray)
-  ship.add(body);
+  // Lists of cube positions for each material.
+  // A position is [x, y, z] counted in cubes (not in game units).
+  const parts = { hull: [], red: [], glass: [], engine: [] };
 
-  const nose = makeBlock(0.7, 0.4, 0.5, 0xe84a4a); // red nose
-  nose.position.set(1.45, 0, 0);
-  ship.add(nose);
+  // Add a box made of cubes: start at (x, y, z), size w x h x d cubes
+  function addBlocks(part, x, y, z, w, h, d) {
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < h; j++) {
+        for (let k = 0; k < d; k++) {
+          parts[part].push([x + i, y + j, z + k]);
+        }
+      }
+    }
+  }
 
-  const cockpit = makeBlock(0.8, 0.4, 0.5, 0x4ad8ff); // blue glass
-  cockpit.position.set(0.2, 0.5, 0);
-  ship.add(cockpit);
+  // The ship design (nose points right, +x)
+  addBlocks("hull", -3, -1, -1, 6, 2, 3);   // main body
+  addBlocks("red", 3, -1, -1, 1, 2, 3);     // nose cap
+  addBlocks("red", 4, -1, 0, 1, 2, 1);      // nose tip
+  addBlocks("glass", -1, 1, 0, 3, 1, 1);    // cockpit
+  addBlocks("red", -2, -1, -4, 3, 1, 3);    // left wing (toward the back of the screen)
+  addBlocks("red", -2, -1, 2, 3, 1, 3);     // right wing (toward the camera)
+  addBlocks("red", -3, 1, 0, 1, 2, 1);      // tail fin (tall part)
+  addBlocks("red", -2, 1, 0, 1, 1, 1);      // tail fin (short part)
+  addBlocks("engine", -4, -1, -1, 1, 2, 3); // glowing engine block
 
-  const wings = makeBlock(1.0, 0.15, 2.4, 0xe84a4a); // wide red wings
-  wings.position.set(-0.4, -0.1, 0);
-  ship.add(wings);
+  const materials = {
+    hull: new THREE.MeshLambertMaterial({ map: shipHullTexture }),
+    red: new THREE.MeshLambertMaterial({ map: shipRedTexture }),
+    glass: new THREE.MeshLambertMaterial({ map: shipGlassTexture }),
+    engine: new THREE.MeshBasicMaterial({ map: engineTexture }), // basic = always bright
+  };
 
-  const tail = makeBlock(0.6, 0.6, 0.15, 0xe84a4a); // tail fin
-  tail.position.set(-1.0, 0.5, 0);
-  ship.add(tail);
+  // One InstancedMesh per material draws all of its cubes in a single go (fast)
+  const geometry = new THREE.BoxGeometry(CUBE, CUBE, CUBE);
+  const dummy = new THREE.Object3D();
+  const tint = new THREE.Color();
 
-  const engine = makeBlock(0.4, 0.4, 0.6, 0xffa11a); // orange engine glow
-  engine.position.set(-1.3, 0, 0);
-  engine.material = new THREE.MeshBasicMaterial({ color: 0xffa11a });
-  ship.add(engine);
+  for (const name in parts) {
+    const list = parts[name];
+    const mesh = new THREE.InstancedMesh(geometry, materials[name], list.length);
+    for (let i = 0; i < list.length; i++) {
+      dummy.position.set(list[i][0] * CUBE, (list[i][1] + 0.5) * CUBE, list[i][2] * CUBE);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      // Tiny brightness difference per cube, so no two look exactly alike
+      const shade = 0.88 + Math.random() * 0.12;
+      tint.setRGB(shade, shade, shade);
+      mesh.setColorAt(i, tint);
+    }
+    mesh.castShadow = name !== "engine";
+    mesh.frustumCulled = false;
+    ship.add(mesh);
+  }
 
-  // Keep a handle on the engine so we can make it flicker later
-  ship.userData.engine = engine;
+  // --- Engine glow: a flame that flickers, a soft glow, and a little orange light ---
+  const flameGeometry = new THREE.BoxGeometry(1, 0.5, 0.8);
+  flameGeometry.translate(-0.5, 0, 0); // so the flame grows backwards from x = 0
+  const flame = new THREE.Mesh(flameGeometry, new THREE.MeshBasicMaterial({
+    color: new THREE.Color(COLORS.engineFlame),
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  }));
+  flame.position.set(-4.5 * CUBE, 0, 0);
+  ship.add(flame);
+
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(COLORS.engineGlow),
+    transparent: true,
+    opacity: 0.35,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    fog: false,
+  });
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.0, 1.4), glowMaterial);
+  glow.position.set(-4.5 * CUBE - 0.3, 0, 0);
+  ship.add(glow);
+
+  const engineLight = new THREE.PointLight(new THREE.Color(COLORS.engineGlow), 1.2, 9);
+  engineLight.position.set(-4.5 * CUBE - 0.5, 0, 0);
+  ship.add(engineLight);
+
+  // Keep handles so we can make the engine flicker every frame
+  ship.userData.flame = flame;
+  ship.userData.glowMaterial = glowMaterial;
+  ship.userData.engineLight = engineLight;
   return ship;
 }
 
@@ -98,9 +591,9 @@ const ship = buildShip();
 ship.position.set(-screen.halfWidth * 0.6, 0, 0);
 scene.add(ship);
 
-// ---------------------------------------------------------------
-// 5. KEYBOARD INPUT
-// ---------------------------------------------------------------
+// ===============================================================
+// 8. KEYBOARD INPUT
+// ===============================================================
 // "keys" remembers which keys are being held down right now.
 const keys = {};
 
@@ -109,6 +602,10 @@ window.addEventListener("keydown", function (event) {
   // Stop the page from scrolling when pressing arrows or space
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) {
     event.preventDefault();
+  }
+  // Debug: T jumps to the next time-of-day phase
+  if (event.code === "KeyT" && !event.repeat) {
+    jumpToNextPhase();
   }
 });
 
@@ -122,9 +619,9 @@ function isUp()    { return keys["ArrowUp"]    || keys["KeyW"]; }
 function isDown()  { return keys["ArrowDown"]  || keys["KeyS"]; }
 function isShooting() { return keys["Space"]; }
 
-// ---------------------------------------------------------------
-// 6. MOVING THE SHIP
-// ---------------------------------------------------------------
+// ===============================================================
+// 9. MOVING THE SHIP
+// ===============================================================
 function updateShip(dt) {
   // Work out direction: -1, 0 or 1 on each axis
   let moveX = 0;
@@ -154,23 +651,43 @@ function updateShip(dt) {
   // Tilt the nose a little when going up or down
   ship.rotation.z = moveY * 0.25;
 
-  // Flicker the engine glow
-  ship.userData.engine.scale.x = 0.8 + Math.random() * 0.6;
+  // Flicker the engine flame, glow and light (stronger at night via glowBoost)
+  const bigger = 1 + 0.3 * (glowBoost - 1);
+  ship.userData.flame.scale.set(0.7 + Math.random() * 0.8, bigger, bigger);
+  ship.userData.glowMaterial.opacity = Math.min(0.9, (0.28 + Math.random() * 0.15) * glowBoost);
+  ship.userData.engineLight.intensity = (1.0 + Math.random() * 0.5) * glowBoost;
 }
 
-// ---------------------------------------------------------------
-// 7. BULLETS
-// ---------------------------------------------------------------
+// ===============================================================
+// 10. BULLETS (bright yellow with a small glow)
+// ===============================================================
 const bullets = [];          // all bullets currently flying
 let shootTimer = 0;          // counts down until we can shoot again
 
-// One shared shape and color for every bullet (saves memory)
-const bulletGeometry = new THREE.BoxGeometry(0.7, 0.2, 0.2);
-const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xfff04a });
+// Shared shapes and materials for every bullet (saves memory)
+const bulletCoreGeometry = new THREE.BoxGeometry(0.7, 0.2, 0.2);
+const bulletHotGeometry = new THREE.BoxGeometry(0.5, 0.09, 0.09);
+const bulletGlowGeometry = new THREE.BoxGeometry(1.2, 0.55, 0.55);
+const bulletCoreMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(COLORS.bulletCore), fog: false });
+const bulletHotMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(COLORS.bulletHot), fog: false });
+const bulletGlowMaterial = new THREE.MeshBasicMaterial({
+  color: new THREE.Color(COLORS.bulletGlow),
+  transparent: true,
+  opacity: 0.35,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  fog: false,
+});
 
 function shootBullet() {
-  const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-  bullet.position.set(ship.position.x + 1.9, ship.position.y, 0);
+  // A bullet is a small group: yellow core + white-hot middle + soft glow
+  const bullet = new THREE.Group();
+  bullet.add(new THREE.Mesh(bulletCoreGeometry, bulletCoreMaterial));
+  bullet.add(new THREE.Mesh(bulletHotGeometry, bulletHotMaterial));
+  const glow = new THREE.Mesh(bulletGlowGeometry, bulletGlowMaterial);
+  glow.scale.setScalar(1 + 0.35 * (glowBoost - 1)); // bigger glow at night
+  bullet.add(glow);
+  bullet.position.set(ship.position.x + 2.1, ship.position.y, 0);
   scene.add(bullet);
   bullets.push(bullet);
 }
@@ -195,101 +712,525 @@ function updateBullets(dt) {
   }
 }
 
-// ---------------------------------------------------------------
-// 8. SCROLLING TERRAIN
-// ---------------------------------------------------------------
-// The ground is a row of "columns". Each column is a stack of cubes.
+// ===============================================================
+// 11. SCROLLING TERRAIN (instanced, textured)
+// ===============================================================
+// The ground is a row of "columns". Each column is a stack of cubes:
+// stone at the bottom, dirt in the middle, grass on top.
 // Columns slide left. When one leaves the screen, it jumps to the right
 // end with a new height, so the ground never runs out.
+//
+// To keep things fast, all cubes of one kind (grass, dirt or stone) are
+// drawn together as ONE "InstancedMesh" instead of hundreds of meshes.
 
 const MAX_LAYERS = 5; // tallest a column can be (in cubes)
 
+// Materials shared by all terrain. A cube has 6 faces, in this order:
+// right, left, top, bottom, front, back.
+//
+// Textures come from image files (see TERRAIN_TEXTURES at the top).
+// Each material starts as a plain fallback color. When its image finishes
+// loading, the picture is put on it. If loading fails, the color stays.
+const textureLoader = new THREE.TextureLoader();
+const textureCache = {}; // so each image file is only loaded once
+
+function loadPixelTexture(file, onReady) {
+  let entry = textureCache[file];
+  if (!entry) {
+    entry = { texture: null, failed: false, waiting: [] };
+    textureCache[file] = entry;
+    textureLoader.load(
+      TEXTURE_FOLDER + file,
+      function (texture) {
+        // Nearest = no smoothing, no mipmaps, so pixels stay crisp squares
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.generateMipmaps = false;
+        entry.texture = texture;
+        for (const callback of entry.waiting) callback(texture);
+        entry.waiting = [];
+      },
+      undefined,
+      function () {
+        entry.failed = true;
+        entry.waiting = [];
+        console.warn("RocketCraft: could not load " + TEXTURE_FOLDER + file + " - using a plain color instead.");
+      }
+    );
+  }
+  if (entry.texture) onReady(entry.texture);
+  else if (!entry.failed) entry.waiting.push(onReady);
+}
+
+// Make a material for one kind of block face.
+//   info   = an entry of TERRAIN_TEXTURES
+//   bright = brightness of this face (1 = full, lower = darker)
+function makeTerrainMaterial(info, bright) {
+  const material = new THREE.MeshLambertMaterial({
+    color: new THREE.Color(info.fallback).multiplyScalar(bright),
+  });
+
+  function showTexture(texture) {
+    material.map = texture;
+    material.color.setRGB(bright, bright, bright); // show the picture's own colors
+    material.needsUpdate = true;
+  }
+
+  if (info.under) {
+    // This image has see-through parts (the grass fringe). Paint it on top of
+    // another image first (the dirt) so the block has no holes.
+    loadPixelTexture(info.under, function (underTexture) {
+      loadPixelTexture(info.file, function (overlayTexture) {
+        showTexture(stackTextures(underTexture, overlayTexture));
+      });
+    });
+  } else {
+    loadPixelTexture(info.file, showTexture);
+  }
+  return material;
+}
+
+// Paint one loaded texture on top of another and return the combined texture
+function stackTextures(bottomTexture, topTexture) {
+  const size = bottomTexture.image.width;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bottomTexture.image, 0, 0, size, size);
+  ctx.drawImage(topTexture.image, 0, 0, size, size);
+  const combined = new THREE.CanvasTexture(canvas);
+  combined.magFilter = THREE.NearestFilter;
+  combined.minFilter = THREE.NearestFilter;
+  combined.generateMipmaps = false;
+  return combined;
+}
+
+// A grass block has 3 different looks: grass top, grass side, and dirt underneath
+const grassSideMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.grassSide, FACE_BRIGHTNESS.side);
+const grassBlockMaterials = [
+  grassSideMaterial,                                                                  // right
+  grassSideMaterial,                                                                  // left
+  makeTerrainMaterial(TERRAIN_TEXTURES.grassTop, FACE_BRIGHTNESS.top),                // top
+  makeTerrainMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.bottom),                 // bottom
+  grassSideMaterial,                                                                  // front
+  grassSideMaterial,                                                                  // back
+];
+// Dirt and stone cubes use the same picture on every face
+const dirtBlockMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.dirt, FACE_BRIGHTNESS.side);
+const stoneBlockMaterial = makeTerrainMaterial(TERRAIN_TEXTURES.stone, FACE_BRIGHTNESS.side);
+
 function createTerrain(settings) {
-  const columns = [];
-  const totalWidth = settings.columnCount * settings.blockSize;
-  let lastHeight = Math.ceil(settings.maxHeight / 2);
+  const count = settings.columnCount;
+  const size = settings.blockSize;
+  const totalWidth = count * size;
+  const capacity = count * MAX_LAYERS;
+
+  // Information for each column
+  const columnX = [];        // x position
+  const columnHeight = [];   // how many cubes tall
+  const columnShade = [];    // small brightness difference per cube
+
+  const tint = new THREE.Color(settings.tint);
+  const colorHelper = new THREE.Color();
+  const dummy = new THREE.Object3D();
+
+  // The three instanced meshes
+  const geometry = new THREE.BoxGeometry(size, size, settings.depth);
+  const meshes = {
+    grass: new THREE.InstancedMesh(geometry, grassBlockMaterials, capacity),
+    dirt: new THREE.InstancedMesh(geometry, dirtBlockMaterial, capacity),
+    stone: new THREE.InstancedMesh(geometry, stoneBlockMaterial, capacity),
+  };
+  for (const name in meshes) {
+    const mesh = meshes[name];
+    mesh.castShadow = settings.castShadow;
+    mesh.receiveShadow = settings.receiveShadow;
+    mesh.frustumCulled = false;
+    mesh.setColorAt(0, colorHelper.setRGB(1, 1, 1)); // makes sure colors are switched on
+    scene.add(mesh);
+  }
 
   // Pick a new height close to the previous one so the ground looks smooth
+  let lastHeight = Math.ceil(settings.maxHeight / 2);
   function nextHeight() {
     const change = Math.floor(Math.random() * 3) - 1; // -1, 0 or +1
     lastHeight = Math.min(settings.maxHeight, Math.max(1, lastHeight + change));
     return lastHeight;
   }
 
-  // Show/hide cubes in a column to match a height, and color them
-  function setColumnHeight(column, height) {
+  function newShades(columnIndex) {
     for (let layer = 0; layer < MAX_LAYERS; layer++) {
-      const block = column.blocks[layer];
-      block.visible = layer < height;
-      const isTop = layer === height - 1;
-      const color = isTop ? settings.topColor : (layer < 2 ? settings.deepColor : settings.sideColor);
-      block.material.color.setHex(color);
+      columnShade[columnIndex * MAX_LAYERS + layer] = 0.85 + Math.random() * 0.2;
     }
   }
 
-  for (let i = 0; i < settings.columnCount; i++) {
-    const column = new THREE.Group();
-    column.blocks = [];
-    for (let layer = 0; layer < MAX_LAYERS; layer++) {
-      const size = settings.blockSize;
-      const block = makeBlock(size, size, settings.depth, 0xffffff);
-      block.position.y = settings.baseY + size / 2 + layer * size;
-      column.add(block);
-      column.blocks.push(block);
-    }
-    column.position.x = -totalWidth / 2 + i * settings.blockSize;
-    column.position.z = settings.z;
-    setColumnHeight(column, nextHeight());
-    scene.add(column);
-    columns.push(column);
+  for (let i = 0; i < count; i++) {
+    columnX.push(-totalWidth / 2 + i * size);
+    columnHeight.push(nextHeight());
+    newShades(i);
   }
+
+  // Place every cube of every column into the instanced meshes
+  function rebuild() {
+    const used = { grass: 0, dirt: 0, stone: 0 };
+
+    for (let c = 0; c < count; c++) {
+      const height = columnHeight[c];
+      for (let layer = 0; layer < height; layer++) {
+        // What kind of cube is this?
+        let kind = "dirt";
+        if (layer === height - 1) kind = "grass";
+        else if (layer < 2) kind = "stone";
+
+        const mesh = meshes[kind];
+        const index = used[kind]++;
+
+        dummy.position.set(columnX[c], settings.baseY + size / 2 + layer * size, settings.z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(index, dummy.matrix);
+
+        const shade = columnShade[c * MAX_LAYERS + layer];
+        colorHelper.setRGB(shade * tint.r, shade * tint.g, shade * tint.b);
+        mesh.setColorAt(index, colorHelper);
+      }
+    }
+
+    for (const name in meshes) {
+      const mesh = meshes[name];
+      mesh.count = used[name];
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceColor.needsUpdate = true;
+    }
+  }
+  rebuild();
 
   // Called every frame
   function update(dt) {
-    for (const column of columns) {
-      column.position.x -= settings.speed * dt;
+    for (let c = 0; c < count; c++) {
+      columnX[c] -= settings.speed * dt;
       // Off the left side? Jump to the right end with a new height.
-      if (column.position.x < -totalWidth / 2) {
-        column.position.x += totalWidth;
-        setColumnHeight(column, nextHeight());
+      if (columnX[c] < -totalWidth / 2) {
+        columnX[c] += totalWidth;
+        columnHeight[c] = nextHeight();
+        newShades(c);
       }
     }
+    rebuild();
   }
 
   return { update: update };
 }
 
-// Distant hills (dark, slow, far behind the ship)
+// Distant hills: slower, bluish tint, no shadows, and the fog fades them into the sky
 const farTerrain = createTerrain({
   columnCount: 90,
   blockSize: 1.2,
-  depth: 3,
+  depth: 6,
   z: -12,
   baseY: -12,
   maxHeight: 5,
   speed: FAR_TERRAIN_SPEED,
-  topColor: 0x4f8a6a,
-  sideColor: 0x4a7a8c,
-  deepColor: 0x3f6a7a,
+  tint: "#b4d0ee",
+  castShadow: false,
+  receiveShadow: false,
 });
 
-// Near ground (grass on top, dirt and stone below)
+// Near ground: this is the one that catches the ship's shadow
 const nearTerrain = createTerrain({
   columnCount: 60,
   blockSize: 1,
-  depth: 3,
-  z: 0,
+  depth: 6,
+  z: -1,
   baseY: -10,
   maxHeight: 4,
   speed: TERRAIN_SPEED,
-  topColor: 0x5fbf4a,
-  sideColor: 0x8b5a2b,
-  deepColor: 0x7d7d85,
+  tint: "#ffffff",
+  castShadow: true,
+  receiveShadow: true,
 });
 
-// ---------------------------------------------------------------
-// 9. THE GAME LOOP
-// ---------------------------------------------------------------
+// ===============================================================
+// 12. BLOCKY CLOUDS (drift slowly to the left)
+// ===============================================================
+const cloudMaterial = new THREE.MeshLambertMaterial({
+  map: cloudTexture,
+  emissive: new THREE.Color("#4d5870"), // keeps the shaded sides from going too dark (set by time of day)
+  fog: false,                           // clouds are not fogged
+});
+const cloudGeometry = new THREE.BoxGeometry(1, 1, 1);
+const cloudWrapDistance = 60; // clouds loop around when they pass this far left
+const clouds = [];
+
+function buildCloud() {
+  const cloud = new THREE.Group();
+  const blockSize = 1.5 + Math.random() * 1.5;
+  const length = 3 + Math.floor(Math.random() * 4);
+
+  for (let i = 0; i < length; i++) {
+    // Bottom row
+    const bottom = new THREE.Mesh(cloudGeometry, cloudMaterial);
+    bottom.scale.set(blockSize, blockSize, blockSize * 1.6);
+    bottom.position.set(i * blockSize, 0, 0);
+    cloud.add(bottom);
+
+    // A few bumps on top (not on the very ends)
+    if (i > 0 && i < length - 1 && Math.random() < 0.65) {
+      const top = new THREE.Mesh(cloudGeometry, cloudMaterial);
+      top.scale.set(blockSize, blockSize, blockSize * 1.2);
+      top.position.set(i * blockSize, blockSize, 0);
+      cloud.add(top);
+    }
+  }
+
+  cloud.position.set(
+    -cloudWrapDistance + Math.random() * cloudWrapDistance * 2,
+    3 + Math.random() * 10,
+    -10 - Math.random() * 14
+  );
+  cloud.userData.speed = CLOUDS.minSpeed + Math.random() * (CLOUDS.maxSpeed - CLOUDS.minSpeed);
+  scene.add(cloud);
+  clouds.push(cloud);
+}
+
+for (let i = 0; i < CLOUDS.count; i++) buildCloud();
+
+function updateClouds(dt) {
+  for (const cloud of clouds) {
+    cloud.position.x -= cloud.userData.speed * dt;
+    if (cloud.position.x < -cloudWrapDistance) {
+      cloud.position.x += cloudWrapDistance * 2;
+    }
+  }
+}
+
+// ===============================================================
+// 13. TIME OF DAY
+// ===============================================================
+// How it works, step by step:
+//   1. We read the real clock (hour + minutes) -> "target hour".
+//   2. "shownHour" follows the target hour. Normally they are the same.
+//      After pressing T, shownHour fast-forwards so the sky sweeps smoothly.
+//   3. From shownHour we pick the phase and blend with the next/previous phase.
+//   4. We apply the blended look to the sky, lights, fog, clouds, sun/moon, glow.
+
+const phases = TIME_OF_DAY.phases;
+const phaseCount = phases.length;
+
+// --- Turn the look settings (text colors) into real Three.js colors, once ---
+function parseLook(source) {
+  const look = {};
+  for (const key in source) {
+    look[key] = typeof source[key] === "string" ? new THREE.Color(source[key]) : source[key];
+  }
+  return look;
+}
+const parsedLooks = phases.map(function (phase) { return parseLook(phase.look); });
+const currentLook = parseLook(phases[0].look); // the blended result, reused every frame
+
+// Mix look a and look b. amount 0 = all a, 1 = all b. Result goes into "out".
+function mixLooks(a, b, amount, out) {
+  for (const key in out) {
+    if (out[key].isColor) {
+      out[key].copy(a[key]).lerp(b[key], amount);
+    } else {
+      out[key] = a[key] + (b[key] - a[key]) * amount;
+    }
+  }
+}
+
+function smoothStep(x) {
+  return x * x * (3 - 2 * x);
+}
+
+// Hours helpers. The day starts at the first phase (morning), so hours before
+// that (for example 3:00) are treated as "27:00" to keep night in one piece.
+function unwrapHour(hour) {
+  return hour < phases[0].start ? hour + 24 : hour;
+}
+function phaseStart(i) { return phases[i].start; }
+function phaseEnd(i) { return i < phaseCount - 1 ? phases[i + 1].start : phases[0].start + 24; }
+function phaseLength(i) { return phaseEnd(i) - phaseStart(i); }
+
+function getPhaseIndex(hour) {
+  const h = unwrapHour(hour);
+  for (let i = 0; i < phaseCount; i++) {
+    if (h >= phaseStart(i) && h < phaseEnd(i)) return i;
+  }
+  return phaseCount - 1;
+}
+
+// Work out the blended look for an hour and store it in currentLook
+function computeLook(hour) {
+  const h = unwrapHour(hour);
+  const i = getPhaseIndex(hour);
+  const next = (i + 1) % phaseCount;
+  const previous = (i + phaseCount - 1) % phaseCount;
+  const start = phaseStart(i);
+  const end = phaseEnd(i);
+  const halfBlend = TIME_OF_DAY.blendHours / 2;
+
+  // The blend zone is centered on the phase boundary (half before, half after)
+  const halfAtEnd = Math.min(halfBlend, phaseLength(i) / 2, phaseLength(next) / 2);
+  const halfAtStart = Math.min(halfBlend, phaseLength(i) / 2, phaseLength(previous) / 2);
+
+  if (h > end - halfAtEnd) {
+    const t = (h - (end - halfAtEnd)) / (2 * halfAtEnd);      // 0 .. 0.5
+    mixLooks(parsedLooks[i], parsedLooks[next], smoothStep(t), currentLook);
+  } else if (h < start + halfAtStart) {
+    const t = 0.5 + (h - start) / (2 * halfAtStart);          // 0.5 .. 1
+    mixLooks(parsedLooks[previous], parsedLooks[i], smoothStep(t), currentLook);
+  } else {
+    mixLooks(parsedLooks[i], parsedLooks[i], 0, currentLook);
+  }
+}
+
+// --- The clock ---
+function realHour() {
+  const now = new Date();
+  return now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+}
+function wrapHour(hour) {
+  return ((hour % 24) + 24) % 24;
+}
+
+// Debug: ?hour=20 in the address sets the hour (the clock keeps running from there)
+let hourOffset = 0;                       // added to the real clock
+const hourFromUrl = parseFloat(new URLSearchParams(window.location.search).get("hour"));
+if (isFinite(hourFromUrl)) {
+  hourOffset = hourFromUrl - realHour();
+}
+let shownHour = wrapHour(realHour() + hourOffset);
+
+// Debug: T key. Jump to the middle of the next phase.
+function jumpToNextPhase() {
+  const current = getPhaseIndex(wrapHour(realHour() + hourOffset));
+  const next = (current + 1) % phaseCount;
+  const middle = (phaseStart(next) + phaseEnd(next)) / 2;
+  hourOffset = middle - realHour();
+}
+
+// --- Sun and moon position: they travel in an arc across the sky ---
+// progress 0 = left horizon, 0.5 = top of the sky, 1 = right horizon
+const sunriseHour = phases[0].start;
+const sunsetHour = phases[phaseCount - 1].start; // night begins when the sun sets
+
+function arcPosition(group, progress) {
+  const clamped = Math.min(1, Math.max(0, progress));
+  const angle = Math.PI * clamped;
+  group.position.set(
+    -Math.cos(angle) * skySize.halfWidth * 0.75,
+    skySize.halfHeight * (-0.6 + 1.4 * Math.sin(angle)), // starts hidden behind the hills
+    -SUN_DISTANCE
+  );
+  return angle;
+}
+
+// Where the light comes from for a given arc angle (low angle = long shadows)
+function lightPositionFor(angle, target) {
+  target.set(-Math.cos(angle) * 16, 1.5 + Math.sin(angle) * 14, 9);
+  return target;
+}
+
+// Reusable objects (so we don't create new ones every frame)
+const sunLightPosition = new THREE.Vector3();
+const moonLightPosition = new THREE.Vector3();
+const lightColorHelper = new THREE.Color();
+const tintHelper = new THREE.Color();
+
+let lastLabel = "";
+const phaseLabel = document.getElementById("phase");
+
+function updateTimeOfDay(dt, instant) {
+  // 1. Follow the real clock. shownHour chases the target (only moves forward).
+  const targetHour = wrapHour(realHour() + hourOffset);
+  let difference = wrapHour(targetHour - shownHour);
+  if (instant || difference > 23.9) {
+    shownHour = targetHour;
+  } else if (difference > 0.0005) {
+    shownHour = wrapHour(shownHour + Math.min(difference, TIME_OF_DAY.sweepHoursPerSecond * dt));
+  }
+
+  // 2. Blend the phases
+  computeLook(shownHour);
+  const look = currentLook;
+  const h = unwrapHour(shownHour);
+
+  // 3. Sky and fog
+  paintSky(look.skyTop, look.skyMid, look.skyHorizon);
+  if (scene.fog) scene.fog.color.copy(look.fog);
+
+  // 4. Sun and moon (blocky cubes in the sky)
+  const sunProgress = (h - sunriseHour) / (sunsetHour - sunriseHour);
+  const moonProgress = (h - sunsetHour) / (sunriseHour + 24 - sunsetHour);
+  const sunIsUp = h >= sunriseHour && h < sunsetHour;
+  const moonIsUp = h >= sunsetHour; // unwrapHour keeps early-morning hours above this
+  sunGroup.visible = sunIsUp;
+  moonGroup.visible = moonIsUp;
+  const sunAngle = arcPosition(sunGroup, sunProgress);
+  const moonAngle = arcPosition(moonGroup, moonProgress);
+  sunParts.cube.rotation.y += dt * 0.25; // slow spin so the cube faces catch the light
+  moonParts.cube.rotation.y += dt * 0.15;
+
+  // Sun colors (the cube faces keep different brightness, tinted by the time of day)
+  for (let i = 0; i < FACE_SHADES.length; i++) {
+    sunParts.materials[i].color.setRGB(
+      FACE_SHADES[i] * look.sunTint.r, FACE_SHADES[i] * look.sunTint.g, FACE_SHADES[i] * look.sunTint.b
+    );
+  }
+  sunGlowOuter.material.color.copy(look.sunGlow);
+  sunGlowInner.material.color.copy(look.sunGlow);
+
+  // 5. Stars (fade in at night, with a tiny twinkle)
+  starMaterial.opacity = look.starOpacity * (0.85 + 0.15 * Math.sin(performance.now() / 700));
+  stars.visible = look.starOpacity > 0.01;
+
+  // 6. Lights. One directional light does both sun and moon:
+  //    it sits where the stronger one is, and mixes their colors.
+  lightPositionFor(sunAngle, sunLightPosition);
+  lightPositionFor(moonAngle, moonLightPosition);
+  const sunStrength = look.sunIntensity;
+  const moonStrength = look.moonIntensity;
+  const totalStrength = sunStrength + moonStrength;
+  if (totalStrength > 0.001) {
+    sunLight.position.copy(sunLightPosition).multiplyScalar(sunStrength)
+      .addScaledVector(moonLightPosition, moonStrength)
+      .normalize().multiplyScalar(SKY_OBJECTS.lightDistance);
+    lightColorHelper.copy(look.sunColor).lerp(look.moonColor, moonStrength / totalStrength);
+    sunLight.color.copy(lightColorHelper);
+  }
+  sunLight.intensity = totalStrength;
+
+  hemiLight.color.copy(look.hemiSky);
+  hemiLight.groundColor.copy(look.hemiGround);
+  hemiLight.intensity = look.hemiIntensity;
+
+  // 7. Clouds
+  cloudMaterial.color.copy(look.cloudTint);
+  cloudMaterial.emissive.copy(look.cloudEmissive);
+
+  // 8. Glow of the engine and bullets (stronger at night)
+  glowBoost = look.glowBoost;
+  bulletGlowMaterial.opacity = Math.min(0.9, 0.35 * glowBoost);
+
+  // 9. Little text in the corner (only touched when it changes)
+  const hours = Math.floor(shownHour);
+  const minutes = Math.floor((shownHour - hours) * 60);
+  const label = phases[getPhaseIndex(shownHour)].name + "  " +
+    String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0") +
+    "  (T = next phase)";
+  if (label !== lastLabel && phaseLabel) {
+    phaseLabel.textContent = label;
+    lastLabel = label;
+  }
+}
+
+updateTimeOfDay(0, true); // set the right look before the first frame
+
+// ===============================================================
+// 14. THE GAME LOOP
+// ===============================================================
 // This function runs about 60 times per second.
 const clock = new THREE.Clock();
 
@@ -299,8 +1240,10 @@ function gameLoop() {
   // dt = seconds since the last frame (capped so lag spikes don't cause jumps)
   const dt = Math.min(clock.getDelta(), 0.05);
 
+  updateTimeOfDay(dt, false);
   updateShip(dt);
   updateBullets(dt);
+  updateClouds(dt);
   farTerrain.update(dt);
   nearTerrain.update(dt);
 

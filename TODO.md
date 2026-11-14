@@ -8,6 +8,8 @@ A 2.5D side-scrolling shooter with an original blocky, cube-built look. The feel
 
 - [x] Step 1: ship, shooting, scrolling blocky terrain
 - [x] Live on GitHub Pages
+- [x] Visual upgrade: pixel textures, shadows, fog, clouds, glow
+- [x] Time of day (follows the player's clock: morning, daylight, afternoon, sunset, night)
 
 ## Next (must have)
 
@@ -47,6 +49,6 @@ Step 2:
 
 ## Rules
 
-- Everything original: no copied art, sounds or names.
+- Everything original, except licensed assets that are credited in CREDITS.md. No copied art, sounds or names otherwise.
 - One feature at a time.
 - Test, then commit and push.
