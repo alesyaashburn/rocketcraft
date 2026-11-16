@@ -10,17 +10,18 @@ A 2.5D side-scrolling shooter with an original blocky, cube-built look. The feel
 - [x] Live on GitHub Pages
 - [x] Visual upgrade: pixel textures, shadows, fog, clouds, glow
 - [x] Time of day (follows the player's clock: morning, daylight, afternoon, sunset, night)
+- [x] Step 2: flying saucer enemies (scout, standard, heavy), collisions, hit-point bars, score, lives, game over and restart
 
 ## Next (must have)
 
 Step 2:
 
-- [ ] Enemies
-- [ ] Collisions (bullets hit enemies, enemies hit the ship)
-- [ ] Score
-- [ ] Lives
-- [ ] Game over
-- [ ] Restart
+- [x] Enemies
+- [x] Collisions (bullets hit enemies, enemies hit the ship)
+- [x] Score
+- [x] Lives
+- [x] Game over
+- [x] Restart
 
 ## Then (makes it fun)
 

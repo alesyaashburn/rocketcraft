@@ -54,3 +54,53 @@ html, body {
   pointer-events: none;
   user-select: none;
 }
+
+/* Score and lives, top-right corner */
+#score, #lives {
+  position: fixed;
+  right: 18px;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 #000000;
+  pointer-events: none;
+  user-select: none;
+}
+
+#score {
+  top: 12px;
+  font-size: 24px;
+  letter-spacing: 2px;
+}
+
+#lives {
+  top: 44px;
+  font-size: 20px;
+  color: #ff5a5a;
+}
+
+/* Game Over message in the middle of the screen */
+#gameover {
+  display: none;               /* shown by main.js when you lose */
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #ffffff;
+  text-shadow: 3px 3px 0 #000000;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 20px 40px;
+  pointer-events: none;
+  user-select: none;
+}
+
+#gameover h2 {
+  margin: 0 0 8px 0;
+  font-size: 48px;
+  letter-spacing: 4px;
+  color: #ff5a5a;
+}
+
+#gameover p {
+  margin: 4px 0;
+  font-size: 20px;
+}

@@ -16,6 +16,7 @@ Built with plain HTML, CSS and JavaScript. Three.js is loaded from a CDN, and th
 | --- | --- |
 | Move | Arrow keys or W A S D |
 | Shoot | Space (hold for rapid fire) |
+| Restart after Game Over | Enter |
 | Debug: next time of day | T (or add `?hour=20` to the address) |
 
 ## Files
@@ -52,6 +53,24 @@ Block textures in `assets/textures/` are from Pixel-Perfection by Hugh "XSSheep"
 ## Changelog
 
 Newest entries go at the top. Add a new dated entry every time the game changes.
+
+### 2026-11-17 - Step 2: enemies, collisions, score and lives
+- Added blocky flying saucers made of cubes: green glass dome, dark hull ring with glowing green windows, layered sandstone rim and little legs. The windows glow more at night.
+- Three types: Scout (small, fast, 1 hit), Standard (medium, wavy flight, 3 hits) and Heavy (large, slow, 6 hits). Each is a voxel design in `ENEMY_DESIGNS` at the top of `main.js`.
+- Saucers spawn on the right at random heights. The spawn rate speeds up as the score goes up. Spawn settings and hit points are in `GAME_RULES` and `ENEMY_TYPES`.
+- Bullets hurt saucers: the saucer flashes white and is pushed back, and a segmented hit-point bar (green, yellow, red) shows above it for about 2 seconds.
+- A destroyed saucer breaks into small cubes and gives points (more for tougher types).
+- Score and lives (3) show on screen. A saucer that touches your ship costs a life and the ship flickers. At zero lives a Game Over message shows and Enter restarts.
+- Saucers are reused from pools, and there is a limit on how many are on screen.
+- No power-ups, bosses or tractor beam yet.
+
+### 2026-11-17 - New ship: the platypus aircraft
+- Redesigned the player's ship as a blocky platypus-themed aircraft, 14 cubes long and 5 tall: flat duck-bill nose, rounded brown and grey body, flat paddle tail, short webbed wings with little "toes", a glass cockpit bubble and two cube eyes.
+- Built from dirt, gravel, tree bark, sandstone, coal block and glass textures in `assets/textures`.
+- Small glowing orange engine cube with a flickering 3-cube exhaust that glows more at night.
+- Bullets come out of the tip of the bill. The hitbox is measured from the cubes, and the tilt is unchanged.
+- The shape is in `SHIP_DESIGN` at the top of `main.js`.
+- Gameplay is unchanged.
 
 ### 2026-11-15 - Ship fix: grey, clearer shape, smaller engine
 - The ship is now clearly grey: stone body, stone brick fins and trim, light metal (tin block) nose and wing edges, glass cockpit. The textures are turned grey in the browser so the brown mortar lines are gone.

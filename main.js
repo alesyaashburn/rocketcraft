@@ -146,11 +146,12 @@ const FACE_BRIGHTNESS = {
 // ===============================================================
 // SHIP DESIGN (edit this to change the shape of your ship!)
 // ===============================================================
-// The ship is made of cubes. We describe it with small text pictures.
+// The ship is a blocky platypus-themed aircraft made of cubes.
+// We describe it with small text pictures.
 //
 // HOW TO READ IT
 //  * Each "slice" is a SIDE VIEW of the ship, drawn as rows of letters.
-//    Top row = top of the ship. Left = the back (engine). Right = the nose.
+//    Top row = top of the ship. Left = the back (tail). Right = the front (bill).
 //  * Every letter is one cube. The letter tells which texture it uses
 //    (see "legend" below). A "." means "no cube here".
 //  * "depth" says how far toward/away from you this slice is placed:
@@ -159,100 +160,292 @@ const FACE_BRIGHTNESS = {
 //    A slice with depth [-1, 1] is drawn twice (a left and a right copy),
 //    so the ship is the same on both sides.
 //  * All slices must have the same number of rows, and all rows the same
-//    number of letters (12 columns, 5 rows here = 12 long, 5 tall).
+//    number of letters (14 columns, 5 rows here = 14 long, 5 tall).
 //
 // TIPS
 //  * Change a letter to change a cube's texture. Change a letter to "." to remove it.
-//  * Add a new slice to make the ship wider or add wings.
+//  * Add a new slice to make the ship wider.
 //  * Keep every row the same length, or the ship will look crooked.
 //  * The hitbox is measured from these cubes automatically.
 const SHIP_DESIGN = {
-  cubeSize: 0.4,   // size of one cube in game units (bigger = bigger ship)
+  cubeSize: 0.36,  // size of one cube in game units (bigger = bigger ship)
 
   // Which texture each letter means (names are from SHIP_TEXTURES below)
   legend: {
-    S: "stone",    // main body
-    B: "brick",    // trim and the two tail fins
-    C: "cobble",   // more trim (not used yet, free for you to try)
-    I: "metal",    // nose and wing edges
-    G: "glass",    // cockpit
-    E: "engine",   // the small glowing orange-yellow engine cube
+    D: "dirt",       // brown body
+    R: "gravel",     // grey-brown belly and the wing webbing
+    T: "bark",       // dark brown tail paddle and the wing "toes"
+    L: "bill",       // light bill (the duck-bill nose)
+    K: "eye",        // the two cube eyes
+    G: "glass",      // cockpit bubble
+    E: "engine",     // the small glowing orange engine cube
   },
 
   // Which row the engine and the gun are on (row 0 = top row)
   engineRow: 2,
-  muzzleRow: 2,
+  muzzleRow: 3,      // bullets come out of the tip of the bill
 
   slices: [
-    // Middle of the ship (depth 0): top fin + bottom fin at the back,
-    // cockpit on top near the front, pointed nose on the right
+    // Middle of the ship (depth 0)
     {
       depth: [0],
       rows: [
-        "BBB...GGG...",   // top fin (back) and cockpit (front)
-        "BSSSSSSSSI..",
-        "ESSSSSSSSSII",   // middle row: the engine cube (E) and the pointed nose
-        "BSSSSSSSSI..",
-        "BBB.........",   // bottom fin (back)
+        ".......GGG....",   // cockpit bubble on top
+        "....DDDDDD....",   // top of the rounded body
+        "..EDDDDDDDDD..",   // E = engine cube, then the body and forehead
+        "TTTDDDDDDDDLLL",   // T = tail paddle (back), L = the flat bill (front)
+        "....RRRRRR....",   // grey belly
       ],
     },
-    // Body sides (one cube out, both sides)
+    // Body sides (one cube out, both sides): body, cockpit width, EYES (K)
     {
       depth: [-1, 1],
       rows: [
-        "......GGG...",   // the cockpit is 3 cubes wide
-        "BSSSSSSSI...",
-        "BSSSSSSSSII.",
-        "BSSSSSSSI...",
-        "............",
+        ".......GGG....",
+        "....DDDDDD....",
+        "...DDDDDDDKD..",   // K = eye, near the front of the head
+        "TTTDDDDDDDDLLL",
+        "....RRRRRR....",
       ],
     },
-    // Short wings, part 1 (two cubes out): metal front edge
+    // Two cubes out: the webbed wings (R = web), the bill gets narrower, tail paddle
     {
       depth: [-2, 2],
       rows: [
-        "............",
-        "............",
-        "...BSSSSI...",
-        "...BSSSSI...",
-        "............",
+        "..............",
+        "..............",
+        ".....DDDD.....",
+        "TTT.RRRRRR.LL.",   // web in the middle, bill corners at the front
+        "..............",
       ],
     },
-    // Short wings, part 2 (three cubes out): the wing tips are all metal
+    // Three cubes out: the wing "toes" (T) and the rounded edges of the tail paddle
     {
       depth: [-3, 3],
       rows: [
-        "............",
-        "............",
-        "....IIII....",
-        "....IIII....",
-        "............",
+        "..............",
+        "..............",
+        "..............",
+        ".TT.T.T.T.....",
+        "..............",
       ],
     },
   ],
 
   // The flickering exhaust: 3 small cubes behind the engine.
-  // Each one is [column, row, depth]. A negative column is BEHIND the ship.
+  // Each one is [column, row, depth]. (The engine cube is at column 2, row 2.)
   exhaust: [
+    [1, 2, 0],
+    [0, 2, 0],
     [-1, 2, 0],
-    [-2, 2, 0],
-    [-3, 2, 0],
   ],
 };
 
 // Images used for the ship (from assets/textures, see CREDITS.md).
-//   fallback = plain color used if the image can't load
-//   grey     = turn the picture grey (removes brown tints from the mortar)
+//   fallback  = plain color used if the image can't load
+//   grey      = turn the picture grey (used for the glass frame)
 //   backColor = paint the see-through image over this color first
 const SHIP_TEXTURES = {
-  stone:  { file: "default_stone.png",       fallback: "#8c8c8c", grey: true },
-  brick:  { file: "default_stone_brick.png", fallback: "#6e6e6e", grey: true },
-  cobble: { file: "default_cobble.png",      fallback: "#767676", grey: true },
-  // Light grey metal block. (iron_block.png is almost black, so it is not used.
-  // To try it anyway: file: "iron_block.png", boost: 2.5)
-  metal:  { file: "default_tin_block.png",   fallback: "#a8a8a8", grey: true },
+  dirt:     { file: "default_dirt.png",      fallback: "#6e5b4b" },
+  gravel:   { file: "default_gravel.png",    fallback: "#8a8078" },
+  bark:     { file: "default_tree.png",      fallback: "#4e3b2a" },
+  bill:     { file: "default_sandstone.png", fallback: "#d8c08e" },
+  eye:      { file: "default_coal_block.png", fallback: "#2a2a2a" },
   // The glass image is mostly see-through, so it is painted over light blue
-  glass:  { file: "default_glass.png",       fallback: "#8fd8ff", grey: true, backColor: "#8fd8ff" },
+  glass:    { file: "default_glass.png",     fallback: "#8fd8ff", grey: true, backColor: "#8fd8ff" },
+};
+
+// ===============================================================
+// GAME RULES AND ENEMY SETTINGS (step 2: tweak the difficulty here)
+// ===============================================================
+const GAME_RULES = {
+  startLives: 3,
+  invulnerableSeconds: 2.0,    // how long your ship flickers (can't be hit) after a hit
+  hitFlashSeconds: 0.12,       // how long a saucer flashes white when you shoot it
+  hitPushback: 5,              // how hard a saucer is pushed back when shot (bigger = farther)
+  hpBarSeconds: 2.0,           // the hit-point bar hides again after this long without a hit
+
+  maxEnemiesOnScreen: 8,       // never more saucers than this at once
+  startSpawnInterval: 2.0,     // seconds between new saucers at the start
+  minSpawnInterval: 0.7,       // ...and the fastest it ever gets
+  speedUpPer1000: 0.35,        // the gap gets this many seconds shorter per 1000 points
+  maxDebris: 200,              // most little broken cubes alive at once
+};
+
+// The three kinds of saucer.
+//   hp           = hits needed to destroy it
+//   speed        = how fast it flies left (units per second)
+//   waveAmplitude/waveSpeed = how far and how fast it moves up and down (0 = straight)
+//   score        = points for destroying it
+//   spawnWeight  = how often it is picked (bigger = more often)
+//   fromScore    = it only starts appearing after you have this many points
+//   debris       = how many little cubes it breaks into
+const ENEMY_TYPES = {
+  scout:    { hp: 1, speed: 7.5, waveAmplitude: 0,   waveSpeed: 0,   score: 100, spawnWeight: 5, fromScore: 0,   debris: 10 },
+  standard: { hp: 3, speed: 3.5, waveAmplitude: 1.8, waveSpeed: 2.2, score: 250, spawnWeight: 3, fromScore: 200, debris: 16 },
+  heavy:    { hp: 6, speed: 1.8, waveAmplitude: 0,   waveSpeed: 0,   score: 600, spawnWeight: 1, fromScore: 800, debris: 26 },
+};
+
+// Colors of the hit-point bar and the broken-cube debris
+const ENEMY_COLORS = {
+  barGreen: "#3be05a",
+  barYellow: "#ffd83a",
+  barRed: "#ff3b3b",
+  barEmpty: "#2b2b33",
+  window: { base: "#2dff6a", dark: "#12c24a", light: "#b8ffd0" },   // glowing windows
+  debris: ["#6fe08a", "#d8c08e", "#3a3a40", "#aeb4b8", "#5dff8a"],
+};
+
+// Windows glow brightness: dim by day, bright at night (uses the time of day)
+const ENEMY_WINDOW_GLOW = { day: 0.6, perBoost: 0.5 };
+
+// ===============================================================
+// ENEMY DESIGNS (edit these to change the saucers!)
+// ===============================================================
+// Same idea as the ship: each "slice" is a SIDE VIEW drawn with letters,
+// top row = top of the saucer, and "depth" says how far toward/away from
+// the camera that slice sits (0 = middle, [-1, 1] = one copy on each side).
+// "." means no cube. All rows in a saucer must be the same length.
+//
+//   G = green glass dome          U = upper rim (lighter, top layer)
+//   V = lower rim (lighter)       H = dark hull ring
+//   W = glowing green window      L = landing leg
+const ENEMY_LEGEND = {
+  G: "dome", U: "rimUpper", V: "rimLower", H: "hull", W: "window", L: "leg",
+};
+
+// Images used for the saucers (see CREDITS.md). Fallback = color if the image can't load.
+const ENEMY_TEXTURES = {
+  // Glass painted over a see-through green, tinted green, slightly transparent
+  dome:     { file: "default_glass.png",          fallback: "#4fd870", grey: true,
+              backColor: "rgba(160, 255, 180, 0.55)", tint: "#7dff9a", opacity: 0.8 },
+  rimUpper: { file: "default_sandstone_brick.png", fallback: "#d8c08e" },
+  rimLower: { file: "default_sandstone.png",       fallback: "#e6d3a3" },
+  hull:     { file: "default_coal_block.png",      fallback: "#3a3a40" },
+  leg:      { file: "default_tin_block.png",       fallback: "#aeb4b8" },
+};
+
+const ENEMY_DESIGNS = {
+  // SCOUT: small, 5 cubes wide
+  scout: {
+    cubeSize: 0.36,
+    slices: [
+      { depth: [0], rows: [
+        ".GGG.",
+        "UUUUU",
+        "HHHHH",
+        ".HHH.",
+        ".....",
+      ] },
+      { depth: [-1, 1], rows: [
+        "..G..",
+        ".UUU.",
+        "HWHWH",
+        ".HHH.",
+        ".L.L.",
+      ] },
+    ],
+  },
+
+  // STANDARD: medium, 7 cubes wide
+  standard: {
+    cubeSize: 0.4,
+    slices: [
+      { depth: [0], rows: [
+        "..GGG..",
+        ".GGGGG.",
+        ".VVVVV.",
+        "UUUUUUU",
+        "HWHWHWH",
+        ".HHHHH.",
+        ".......",
+      ] },
+      { depth: [-1, 1], rows: [
+        "..GGG..",
+        ".GGGGG.",
+        ".VVVVV.",
+        "UUUUUUU",
+        "HWHWHWH",
+        ".HHHHH.",
+        ".L...L.",
+      ] },
+      { depth: [-2, 2], rows: [
+        ".......",
+        "..GGG..",
+        "..VVV..",
+        ".UUUUU.",
+        ".HWHWH.",
+        "..HHH..",
+        ".......",
+      ] },
+      { depth: [-3, 3], rows: [
+        ".......",
+        ".......",
+        ".......",
+        "..UUU..",
+        "..HWH..",
+        ".......",
+        ".......",
+      ] },
+    ],
+  },
+
+  // HEAVY: large, 9 cubes wide
+  heavy: {
+    cubeSize: 0.44,
+    slices: [
+      { depth: [0], rows: [
+        "...GGG...",
+        "..GGGGG..",
+        ".GGGGGGG.",
+        ".VVVVVVV.",
+        "UUUUUUUUU",
+        "HWHWHWHWH",
+        ".HHHHHHH.",
+        ".........",
+      ] },
+      { depth: [-1, 1], rows: [
+        "...GGG...",
+        "..GGGGG..",
+        ".GGGGGGG.",
+        ".VVVVVVV.",
+        "UUUUUUUUU",
+        "HWHWHWHWH",
+        ".HHHHHHH.",
+        ".L.....L.",
+      ] },
+      { depth: [-2, 2], rows: [
+        ".........",
+        "...GGG...",
+        "..GGGGG..",
+        "..VVVVV..",
+        ".UUUUUUU.",
+        ".HWHWHWH.",
+        "..HHHHH..",
+        ".........",
+      ] },
+      { depth: [-3, 3], rows: [
+        ".........",
+        ".........",
+        "...GGG...",
+        "...VVV...",
+        "..UUUUU..",
+        "..HWHWH..",
+        "...HHH...",
+        ".........",
+      ] },
+      { depth: [-4, 4], rows: [
+        ".........",
+        ".........",
+        ".........",
+        ".........",
+        "...UUU...",
+        "...HWH...",
+        ".........",
+        ".........",
+      ] },
+    ],
+  },
 };
 
 // --- Shadows ---
@@ -436,16 +629,24 @@ function loadPixelTexture(file, onReady) {
 //              under     = another image to paint first (for see-through images)
 //              backColor = a color to paint first (for see-through images like glass)
 //              boost     = brightness multiplier (for very dark images)
+//              tint      = a color that is multiplied with the image (for example green glass)
+//              opacity   = make the material see-through (0 to 1)
 //   bright = brightness of this face (1 = full, lower = darker)
 function makeBlockMaterial(info, bright) {
   const level = bright * (info.boost || 1);
+  const tint = new THREE.Color(info.tint || "#ffffff");
   const material = new THREE.MeshLambertMaterial({
     color: new THREE.Color(info.fallback).multiplyScalar(level),
   });
+  if (info.opacity !== undefined) {
+    material.transparent = true;
+    material.opacity = info.opacity;
+    material.depthWrite = false; // see-through cubes should not hide what is behind them
+  }
 
   function showTexture(texture) {
     material.map = texture;
-    material.color.setRGB(level, level, level); // show the picture's own colors
+    material.color.copy(tint).multiplyScalar(level); // the picture's own colors (times the tint)
     material.needsUpdate = true;
   }
 
@@ -728,6 +929,7 @@ function buildShip() {
 
   // Read the design: collect cube positions for each kind of cube
   const parts = {};
+  let engineColumn = 0; // the column of the engine cube
   let minColumn = Infinity, maxColumn = -Infinity, minRow = Infinity, maxRow = -Infinity;
   for (const slice of SHIP_DESIGN.slices) {
     slice.rows.forEach(function (rowText, row) {
@@ -735,6 +937,7 @@ function buildShip() {
         const name = SHIP_DESIGN.legend[rowText[column]];
         if (!name) continue; // "." (or any letter not in the legend) = empty
         if (!parts[name]) parts[name] = [];
+        if (name === "engine") engineColumn = column;
         for (const depth of slice.depth) {
           parts[name].push([gridX(column), gridY(row), depth * cube]);
         }
@@ -777,14 +980,14 @@ function buildShip() {
   }
 
   // --- Exhaust: a few glowing cubes behind the engine that flicker ---
-  const backX = gridX(0) - cube / 2; // x of the back of the ship
+  const backX = gridX(engineColumn) - cube / 2; // x of the back of the engine cube
   const engineY = gridY(SHIP_DESIGN.engineRow); // height of the engines
   // Normal (not additive) materials, so the glow can never wash out to white
   const exhaustMaterial = new THREE.MeshBasicMaterial({ map: engineTexture, fog: false });
   const exhaust = SHIP_DESIGN.exhaust.map(function (cell) {
     const piece = new THREE.Mesh(geometry, exhaustMaterial);
     piece.position.set(gridX(cell[0]), gridY(cell[1]), cell[2] * cube);
-    piece.userData.distance = Math.max(0, -cell[0]); // how far behind the engine
+    piece.userData.distance = Math.max(1, engineColumn - cell[0]); // how far behind the engine
     ship.add(piece);
     return piece;
   });
@@ -797,8 +1000,8 @@ function buildShip() {
     depthWrite: false,
     fog: false,
   });
-  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.8), glowMaterial);
-  glow.position.set(backX - 0.5, engineY, 0);
+  const glow = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.8, 0.8), glowMaterial);
+  glow.position.set(backX - 0.6, engineY, 0);
   ship.add(glow);
 
   const engineLight = new THREE.PointLight(new THREE.Color(COLORS.engineGlow), 1.2, 9);
@@ -831,6 +1034,10 @@ window.addEventListener("keydown", function (event) {
   // Debug: T jumps to the next time-of-day phase
   if (event.code === "KeyT" && !event.repeat) {
     jumpToNextPhase();
+  }
+  // Enter restarts after Game Over
+  if (event.code === "Enter" && game.state === "gameover") {
+    restartGame();
   }
 });
 
@@ -933,7 +1140,7 @@ function shootBullet() {
 function updateBullets(dt) {
   // Count down the cooldown, and shoot if Space is held
   shootTimer -= dt;
-  if (isShooting() && shootTimer <= 0) {
+  if (isShooting() && shootTimer <= 0 && game.state === "playing") {
     shootBullet();
     shootTimer = SHOOT_COOLDOWN;
   }
@@ -1163,6 +1370,461 @@ function updateClouds(dt) {
     }
   }
 }
+
+// ===============================================================
+// 12b. ENEMIES, COLLISIONS, SCORE, LIVES (step 2)
+// ===============================================================
+// How it works:
+//  * Saucers are built from the voxel designs in ENEMY_DESIGNS.
+//  * To keep things fast, saucers are REUSED ("pooling"): when one dies or
+//    leaves the screen it goes back to a pool, and is reused for the next spawn.
+//  * Hits are checked with simple boxes (side view): bullet vs saucer,
+//    and saucer vs your ship (using shipHitbox).
+
+const game = {
+  state: "playing",                    // "playing" or "gameover"
+  score: 0,
+  lives: GAME_RULES.startLives,
+  invulnerable: 0,                     // seconds left of flickering after a hit
+  spawnTimer: 1.5,                     // seconds until the next saucer
+};
+
+// --- On-screen text (score, lives, game over message) ---
+const scoreElement = document.getElementById("score");
+const livesElement = document.getElementById("lives");
+const gameOverElement = document.getElementById("gameover");
+const finalScoreElement = document.getElementById("finalScore");
+let lastScoreText = "";
+let lastLivesText = "";
+
+function updateHud() {
+  const scoreText = "Score " + String(game.score).padStart(6, "0");
+  if (scoreElement && scoreText !== lastScoreText) {
+    scoreElement.textContent = scoreText;
+    lastScoreText = scoreText;
+  }
+  const livesText = "Lives " + "♥ ".repeat(Math.max(0, game.lives)).trim();
+  if (livesElement && livesText !== lastLivesText) {
+    livesElement.textContent = livesText;
+    lastLivesText = livesText;
+  }
+}
+
+// --- Shared things (made once, used by every saucer) ---
+const enemyWindowMaterial = new THREE.MeshBasicMaterial({
+  map: makePixelTexture({
+    size: 8, seed: 133, base: ENEMY_COLORS.window.base,
+    speckles: [
+      { color: ENEMY_COLORS.window.dark, chance: 0.2 },
+      { color: ENEMY_COLORS.window.light, chance: 0.15 },
+    ],
+  }),
+  fog: false,
+});
+
+const barSegmentGeometry = new THREE.BoxGeometry(0.22, 0.14, 0.05);
+const barMaterials = {
+  green: new THREE.MeshBasicMaterial({ color: ENEMY_COLORS.barGreen, fog: false }),
+  yellow: new THREE.MeshBasicMaterial({ color: ENEMY_COLORS.barYellow, fog: false }),
+  red: new THREE.MeshBasicMaterial({ color: ENEMY_COLORS.barRed, fog: false }),
+  empty: new THREE.MeshBasicMaterial({ color: ENEMY_COLORS.barEmpty, fog: false }),
+};
+
+const enemyCubeGeometries = {}; // one cube shape per cube size
+
+const enemyPools = { scout: [], standard: [], heavy: [] }; // saucers waiting to be reused
+const activeEnemies = [];                                   // saucers flying right now
+
+// --- Build one saucer from its voxel design ---
+function buildEnemy(typeName) {
+  const type = ENEMY_TYPES[typeName];
+  const design = ENEMY_DESIGNS[typeName];
+  const cube = design.cubeSize;
+  const rowCount = design.slices[0].rows.length;
+  const columnCount = design.slices[0].rows[0].length;
+
+  function gridX(column) { return (column - (columnCount - 1) / 2) * cube; }
+  function gridY(row) { return ((rowCount - 1) / 2 - row) * cube; }
+
+  // Read the design: collect cube positions for each kind of cube
+  const parts = {};
+  let minColumn = Infinity, maxColumn = -Infinity, minRow = Infinity, maxRow = -Infinity;
+  for (const slice of design.slices) {
+    slice.rows.forEach(function (rowText, row) {
+      for (let column = 0; column < rowText.length; column++) {
+        const kind = ENEMY_LEGEND[rowText[column]];
+        if (!kind) continue; // "." = empty
+        if (!parts[kind]) parts[kind] = [];
+        for (const depth of slice.depth) {
+          parts[kind].push([gridX(column), gridY(row), depth * cube]);
+        }
+        minColumn = Math.min(minColumn, column);
+        maxColumn = Math.max(maxColumn, column);
+        minRow = Math.min(minRow, row);
+        maxRow = Math.max(maxRow, row);
+      }
+    });
+  }
+
+  // Each saucer gets its OWN materials (so one saucer can flash without the others).
+  // The windows share one material, so they all glow the same.
+  const materials = {
+    dome: makeBlockMaterial(ENEMY_TEXTURES.dome, 1),
+    rimUpper: makeBlockMaterial(ENEMY_TEXTURES.rimUpper, 1),
+    rimLower: makeBlockMaterial(ENEMY_TEXTURES.rimLower, 1),
+    hull: makeBlockMaterial(ENEMY_TEXTURES.hull, 1),
+    leg: makeBlockMaterial(ENEMY_TEXTURES.leg, 1),
+    window: enemyWindowMaterial,
+  };
+
+  if (!enemyCubeGeometries[cube]) enemyCubeGeometries[cube] = new THREE.BoxGeometry(cube, cube, cube);
+  const geometry = enemyCubeGeometries[cube];
+  const group = new THREE.Group();
+  const dummy = new THREE.Object3D();
+  for (const kind in parts) {
+    const list = parts[kind];
+    const mesh = new THREE.InstancedMesh(geometry, materials[kind], list.length);
+    for (let i = 0; i < list.length; i++) {
+      dummy.position.set(list[i][0], list[i][1], list[i][2]);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+    }
+    mesh.frustumCulled = false;
+    group.add(mesh);
+  }
+
+  // The hitbox: the smallest box around the cubes (side view)
+  const box = {
+    minX: gridX(minColumn) - cube / 2,
+    maxX: gridX(maxColumn) + cube / 2,
+    minY: gridY(maxRow) - cube / 2,
+    maxY: gridY(minRow) + cube / 2,
+  };
+
+  // The hit-point bar: one small segment per hit point, floating above the saucer
+  const barGroup = new THREE.Group();
+  const segments = [];
+  const spacing = 0.27;
+  for (let i = 0; i < type.hp; i++) {
+    const segment = new THREE.Mesh(barSegmentGeometry, barMaterials.empty);
+    segment.position.x = (i - (type.hp - 1) / 2) * spacing;
+    barGroup.add(segment);
+    segments.push(segment);
+  }
+  barGroup.position.set(0, box.maxY + 0.5, 0);
+  barGroup.visible = false;
+  group.add(barGroup);
+
+  return {
+    typeName: typeName,
+    type: type,
+    group: group,
+    flashMaterials: [materials.dome, materials.rimUpper, materials.rimLower, materials.hull, materials.leg],
+    box: box,
+    bar: { group: barGroup, segments: segments, timer: 0 },
+    hp: type.hp,
+    x: 0, y: 0, baseY: 0, phase: 0, age: 0, push: 0, flash: 0,
+  };
+}
+
+// --- The hit-point bar: green, then yellow, then red as it gets low ---
+function updateHpBar(enemy) {
+  let color = barMaterials.green;
+  if (enemy.hp <= 1) color = barMaterials.red;
+  else if (enemy.hp / enemy.type.hp <= 0.5) color = barMaterials.yellow;
+
+  enemy.bar.segments.forEach(function (segment, i) {
+    segment.material = i < enemy.hp ? color : barMaterials.empty;
+  });
+}
+
+function setFlash(enemy, amount) {
+  for (const material of enemy.flashMaterials) {
+    material.emissive.setRGB(amount, amount, amount);
+  }
+}
+
+// --- Spawning and removing saucers ---
+function pickEnemyType() {
+  const options = [];
+  let total = 0;
+  for (const name in ENEMY_TYPES) {
+    if (game.score >= ENEMY_TYPES[name].fromScore) {
+      options.push(name);
+      total += ENEMY_TYPES[name].spawnWeight;
+    }
+  }
+  let roll = Math.random() * total;
+  for (const name of options) {
+    roll -= ENEMY_TYPES[name].spawnWeight;
+    if (roll <= 0) return name;
+  }
+  return options[0];
+}
+
+function spawnEnemy(typeName) {
+  const type = ENEMY_TYPES[typeName];
+  const enemy = enemyPools[typeName].pop() || buildEnemy(typeName);
+
+  enemy.hp = type.hp;
+  enemy.age = 0;
+  enemy.push = 0;
+  enemy.flash = 0;
+  enemy.phase = Math.random() * Math.PI * 2;
+  enemy.bar.timer = 0;
+  enemy.bar.group.visible = false;
+  setFlash(enemy, 0);
+
+  // Random height (room left for the up-and-down wave)
+  const minY = PLAY_FLOOR + 0.6 - enemy.box.minY + type.waveAmplitude;
+  const maxY = screen.halfHeight - 1.5 - enemy.box.maxY - type.waveAmplitude;
+  enemy.baseY = minY + Math.random() * Math.max(0.1, maxY - minY);
+  enemy.y = enemy.baseY;
+  enemy.x = screen.halfWidth + 1 - enemy.box.minX; // just outside the right edge
+
+  enemy.group.position.set(enemy.x, enemy.y, 0);
+  scene.add(enemy.group);
+  activeEnemies.push(enemy);
+}
+
+// Put a saucer back in its pool (it stops existing in the world)
+function releaseEnemy(enemy) {
+  scene.remove(enemy.group);
+  const index = activeEnemies.indexOf(enemy);
+  if (index !== -1) activeEnemies.splice(index, 1);
+  enemyPools[enemy.typeName].push(enemy);
+}
+
+// --- Debris: little cubes that fly apart when something breaks ---
+const debrisList = [];
+const debrisMesh = new THREE.InstancedMesh(
+  new THREE.BoxGeometry(1, 1, 1),
+  new THREE.MeshLambertMaterial({ color: 0xffffff }),
+  GAME_RULES.maxDebris
+);
+debrisMesh.frustumCulled = false;
+debrisMesh.setColorAt(0, new THREE.Color(1, 1, 1)); // makes sure colors are switched on (must come BEFORE count = 0)
+debrisMesh.count = 0;                               // nothing to draw yet
+scene.add(debrisMesh);
+const debrisDummy = new THREE.Object3D();
+const debrisColor = new THREE.Color();
+
+function spawnDebris(x, y, count, colors, sizeScale) {
+  for (let i = 0; i < count; i++) {
+    if (debrisList.length >= GAME_RULES.maxDebris) return;
+    debrisList.push({
+      x: x + (Math.random() - 0.5) * 1.2 * sizeScale,
+      y: y + (Math.random() - 0.5) * 0.8 * sizeScale,
+      z: (Math.random() - 0.5) * 1.2,
+      vx: (Math.random() - 0.5) * 9,
+      vy: Math.random() * 6 + 1,
+      vz: (Math.random() - 0.5) * 5,
+      spinX: Math.random() * 6,
+      spinY: Math.random() * 6,
+      size: (0.12 + Math.random() * 0.16) * sizeScale,
+      life: 0.7 + Math.random() * 0.7,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
+  }
+}
+
+function updateDebris(dt) {
+  for (let i = debrisList.length - 1; i >= 0; i--) {
+    const piece = debrisList[i];
+    piece.life -= dt;
+    if (piece.life <= 0) {
+      debrisList[i] = debrisList[debrisList.length - 1];
+      debrisList.pop();
+      continue;
+    }
+    piece.vy -= 14 * dt; // gravity
+    piece.x += piece.vx * dt;
+    piece.y += piece.vy * dt;
+    piece.z += piece.vz * dt;
+  }
+
+  // Write the positions into the instanced mesh
+  for (let i = 0; i < debrisList.length; i++) {
+    const piece = debrisList[i];
+    debrisDummy.position.set(piece.x, piece.y, piece.z);
+    debrisDummy.rotation.set(piece.life * piece.spinX, piece.life * piece.spinY, 0);
+    debrisDummy.scale.setScalar(piece.size * Math.min(1, piece.life / 0.3)); // shrink at the end
+    debrisDummy.updateMatrix();
+    debrisMesh.setMatrixAt(i, debrisDummy.matrix);
+    debrisMesh.setColorAt(i, debrisColor.set(piece.color));
+  }
+  debrisMesh.count = debrisList.length;
+  debrisMesh.instanceMatrix.needsUpdate = true;
+  debrisMesh.instanceColor.needsUpdate = true;
+}
+
+// --- Hitting and breaking saucers ---
+function breakEnemy(enemy, awardScore) {
+  spawnDebris(enemy.x, enemy.y, enemy.type.debris, ENEMY_COLORS.debris, 1);
+  if (awardScore) {
+    game.score += enemy.type.score;
+    updateHud();
+  }
+  releaseEnemy(enemy);
+}
+
+function damageEnemy(enemy) {
+  enemy.hp -= 1;
+  if (enemy.hp <= 0) {
+    breakEnemy(enemy, true);
+    return;
+  }
+  enemy.flash = GAME_RULES.hitFlashSeconds;   // flash white
+  enemy.push = GAME_RULES.hitPushback;        // pushed back a little
+  enemy.bar.timer = GAME_RULES.hpBarSeconds;  // show the bar
+  updateHpBar(enemy);
+}
+
+// --- Your ship: losing lives, game over, restart ---
+const shipDebrisColors = ["#6e5b4b", "#8a8078", "#4e3b2a", "#d8c08e"];
+
+function hurtShip(enemy) {
+  game.lives -= 1;
+  game.invulnerable = GAME_RULES.invulnerableSeconds;
+  spawnDebris(ship.position.x, ship.position.y, 8, shipDebrisColors, 0.8);
+  breakEnemy(enemy, false); // the saucer that hit you breaks (no points)
+  updateHud();
+  if (game.lives <= 0) gameOver();
+}
+
+function gameOver() {
+  game.state = "gameover";
+  ship.visible = false;
+  spawnDebris(ship.position.x, ship.position.y, 30, shipDebrisColors, 1);
+  for (const bullet of bullets) scene.remove(bullet);
+  bullets.length = 0;
+  if (finalScoreElement) finalScoreElement.textContent = "Score " + String(game.score).padStart(6, "0");
+  if (gameOverElement) gameOverElement.style.display = "block";
+}
+
+function restartGame() {
+  while (activeEnemies.length > 0) releaseEnemy(activeEnemies[0]);
+  for (const bullet of bullets) scene.remove(bullet);
+  bullets.length = 0;
+  debrisList.length = 0;
+
+  game.state = "playing";
+  game.score = 0;
+  game.lives = GAME_RULES.startLives;
+  game.invulnerable = 0;
+  game.spawnTimer = 1.5;
+
+  ship.visible = true;
+  ship.position.set(-screen.halfWidth * 0.6, 0, 0);
+  shipTilt = 0;
+  if (gameOverElement) gameOverElement.style.display = "none";
+  updateHud();
+}
+
+// --- Called every frame ---
+function boxesOverlap(minA, maxA, minB, maxB) {
+  return minA < maxB && maxA > minB;
+}
+
+function updateGame(dt) {
+  const playing = game.state === "playing";
+
+  // 1. Spawn new saucers (the gap gets shorter as the score goes up)
+  if (playing) {
+    game.spawnTimer -= dt;
+    if (game.spawnTimer <= 0) {
+      if (activeEnemies.length < GAME_RULES.maxEnemiesOnScreen) {
+        spawnEnemy(pickEnemyType());
+      }
+      const interval = Math.max(
+        GAME_RULES.minSpawnInterval,
+        GAME_RULES.startSpawnInterval - (game.score / 1000) * GAME_RULES.speedUpPer1000
+      );
+      game.spawnTimer = interval * (0.8 + Math.random() * 0.4);
+    }
+  }
+
+  // 2. Move saucers, flash, hit-point bars, windows
+  const windowLevel = ENEMY_WINDOW_GLOW.day + ENEMY_WINDOW_GLOW.perBoost * (glowBoost - 1);
+  enemyWindowMaterial.color.setRGB(windowLevel, windowLevel, windowLevel);
+
+  for (let i = activeEnemies.length - 1; i >= 0; i--) {
+    const enemy = activeEnemies[i];
+    const type = enemy.type;
+
+    enemy.age += dt;
+    enemy.x -= type.speed * dt;
+    enemy.x += enemy.push * dt;
+    enemy.push *= Math.exp(-8 * dt); // the push fades out quickly
+    enemy.y = enemy.baseY + Math.sin(enemy.age * type.waveSpeed + enemy.phase) * type.waveAmplitude;
+    enemy.group.position.set(enemy.x, enemy.y, 0);
+
+    if (enemy.flash > 0) {
+      enemy.flash -= dt;
+      setFlash(enemy, Math.max(0, enemy.flash) / GAME_RULES.hitFlashSeconds * 0.8);
+    }
+
+    if (enemy.bar.timer > 0) {
+      enemy.bar.timer -= dt;
+      enemy.bar.group.visible = enemy.bar.timer > 0;
+      enemy.bar.group.quaternion.copy(camera.quaternion); // always faces the camera
+    }
+
+    // Left the screen: back to the pool
+    if (enemy.x + enemy.box.maxX < -screen.halfWidth - 2) {
+      releaseEnemy(enemy);
+    }
+  }
+
+  // 3. Collisions
+  if (playing) {
+    // Bullets hit saucers
+    for (let i = activeEnemies.length - 1; i >= 0; i--) {
+      const enemy = activeEnemies[i];
+      const left = enemy.x + enemy.box.minX;
+      const right = enemy.x + enemy.box.maxX;
+      const bottom = enemy.y + enemy.box.minY;
+      const top = enemy.y + enemy.box.maxY;
+      for (let b = bullets.length - 1; b >= 0; b--) {
+        const bullet = bullets[b];
+        const bx = bullet.position.x;
+        const by = bullet.position.y;
+        if (boxesOverlap(bx - 0.4, bx + 0.4, left, right) &&
+            boxesOverlap(by - 0.12, by + 0.12, bottom, top)) {
+          scene.remove(bullet);
+          bullets.splice(b, 1);
+          damageEnemy(enemy);
+          break; // this saucer may be gone now, go to the next one
+        }
+      }
+    }
+
+    // Saucers hit your ship (not while flickering)
+    if (game.invulnerable > 0) {
+      game.invulnerable -= dt;
+      ship.visible = Math.floor(game.invulnerable * 12) % 2 === 0; // flicker
+      if (game.invulnerable <= 0) ship.visible = true;
+    } else {
+      const shipLeft = ship.position.x + shipHitbox.minX;
+      const shipRight = ship.position.x + shipHitbox.maxX;
+      const shipBottom = ship.position.y + shipHitbox.minY;
+      const shipTop = ship.position.y + shipHitbox.maxY;
+      for (let i = activeEnemies.length - 1; i >= 0; i--) {
+        const enemy = activeEnemies[i];
+        if (boxesOverlap(shipLeft, shipRight, enemy.x + enemy.box.minX, enemy.x + enemy.box.maxX) &&
+            boxesOverlap(shipBottom, shipTop, enemy.y + enemy.box.minY, enemy.y + enemy.box.maxY)) {
+          hurtShip(enemy);
+          break; // one hit at a time
+        }
+      }
+    }
+  }
+
+  // 4. Broken cubes
+  updateDebris(dt);
+}
+
+updateHud();
 
 // ===============================================================
 // 13. TIME OF DAY
@@ -1400,8 +2062,9 @@ function gameLoop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateTimeOfDay(dt, false);
-  updateShip(dt);
+  if (game.state === "playing") updateShip(dt);
   updateBullets(dt);
+  updateGame(dt);
   updateClouds(dt);
   farTerrain.update(dt);
   nearTerrain.update(dt);

@@ -14,9 +14,10 @@ The textures in `assets/textures/` stay under the CC-BY-SA-4.0 license. They are
 
 Textures currently used in the game:
 - Terrain: `default_grass.png`, `default_grass_side.png`, `default_dirt.png`, `default_stone.png`
-- Player ship: `default_stone.png`, `default_stone_brick.png`, `default_tin_block.png`, `default_glass.png` (`default_cobble.png` is set up but not used in the current shape)
+- Enemy saucers: `default_glass.png`, `default_coal_block.png`, `default_sandstone_brick.png`, `default_sandstone.png`, `default_tin_block.png`
+- Player ship: `default_dirt.png`, `default_gravel.png`, `default_tree.png`, `default_sandstone.png`, `default_coal_block.png`, `default_glass.png`
 
-The game combines some images in the browser (`default_grass_side.png` over `default_dirt.png`, and `default_glass.png` over a light blue color) and turns the ship's textures grey in the browser. These are small changes to the originals.
+The game combines some images in the browser (`default_grass_side.png` over `default_dirt.png`, and `default_glass.png` over a light blue color) turns the glass frame grey in the browser, and tints the saucer dome glass green. These are small changes to the originals.
 
 ## Everything else
 
